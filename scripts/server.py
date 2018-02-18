@@ -1,3 +1,4 @@
+import os
 import socket
 from select import select
 from sys import stdout
@@ -6,15 +7,14 @@ from threading import Thread
 class Server(Thread):
     def __init__(self, clients, server_settings, backlog_size, max_retries):
         self.hostname = socket.gethostname()
+        print "out dir is:", os.getenv("OUTPUT_DIR")
         self.clients = clients
         self.server_settings = server_settings
         self.backlog_size = backlog_size
         self.max_retries = max_retries
         outfilename = os.path.join(
-                os.getenv("NODE_OUTPUT"),
+                os.getenv("OUTPUT_DIR"),
                 self.hostname + "_server.out")
-        print "outfile is:", outfilename
-        stdout.flush()
         self.outfile = open(outfilename, 'w')
         super(Server, self).__init__(
             group=None, target=None, name="%s (server)" % self.hostname)
@@ -27,8 +27,8 @@ class Server(Thread):
         # make a socket for each client
         socket_list = []
         self.socket = s
-        self.outfile.write("Listening for connections on port",
-                server_settings[1])
+        self.outfile.write("Listening for connections on port (%d)%s" %
+                (self.server_settings[1], os.linesep))
         self.outfile.flush()
         self.get_quorum()
 
@@ -42,19 +42,22 @@ class Server(Thread):
             conn, addr = s.accept()
             connected.append(conn)
 
+        self.outfile.write("Connected with %s clients%s" % (
+            len(connected), os.linesep))
         wlist = (None,)
         xlist = (None,)
-        self.outfile.write("Reading messages")
+        self.outfile.write("Reading messages" + os.linesep)
         self.outfile.flush()
         while 1:
             ready_list = select(connected, wlist, xlist)
             for conn in ready_list:
-                self.outfile.write("Received message from", conn)
+                self.outfile.write("Received message from " + conn +
+                        os.linesep)
                 message = conn.recv(1024)
                 self.outfile.write(message)
                 self.outfile.flush()
         # everyone's connected, so quit
         for conn in connected:
             conn.close()
-        self.outfile.write("Done (%s)" % self.hostname)
+        self.outfile.write("Done (%s)%s" % (self.hostname, os.linesep))
         self.outfile.flush()

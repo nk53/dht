@@ -9,11 +9,10 @@ class Client(Thread):
     def __init__(self, client_settings, backlog_size, max_retries):
         self.hostname = socket.gethostname()
         self.client_settings = client_settings
+        self.max_retries = max_retries
         outfilename = os.path.join(
-                os.getenv("NODE_OUTPUT"),
-                self.hostname + "_server.out")
-        print "outfile is:", outfilename
-        stdout.flush()
+                os.getenv("OUTPUT_DIR"),
+                self.hostname + "_client.out")
         self.outfile = open(outfilename, 'w')
         super(Client, self).__init__(
             group=None, target=None, name="%s (client)" % self.hostname)
@@ -23,7 +22,8 @@ class Client(Thread):
         client_settings = self.client_settings
         for server in client_settings:
             tries = 0
-            self.outfile.write("Attempting connection with", server[0])
+            self.outfile.write("Attempting connection with " + server[0] +
+                    os.linesep)
             self.outfile.flush()
             while tries <= self.max_retries:
                 #try:
@@ -39,7 +39,8 @@ class Client(Thread):
                 #stdout.flush()
                 #sleep(3)
                 #tries += 1
-            self.outfile.write("Connection with %s successful" % server[0])
+            self.outfile.write("Connection with %s successful%s" %
+                    (server[0], os.linesep))
             self.outfile.flush() 
         self.socket = s
         self.connected = connected
@@ -52,5 +53,5 @@ class Client(Thread):
         # everyone's connected, so quit
         for conn in connected:
             conn.close()
-        self.outfile.write("Done (%s)" % self.hostname)
+        self.outfile.write("Done (%s)%s" % (self.hostname, os.linesep))
         self.outfile.flush()
