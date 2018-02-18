@@ -1,0 +1,6 @@
+output/*err
+output/*out
+scripts/*pyc
+config/hosts*
+config/ips
+config/pids
