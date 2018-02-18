@@ -1,0 +1,13 @@
+#!/bin/bash
+
+source setup_env.sh
+
+if [ -e "$ADDRESSES" ]; then
+    rm $ADDRESSES
+fi
+touch $ADDRESSES
+for host in $(cat $HOST_LIST); do 
+    addr=$(ping -c 1 $host | grep -Eo "([0-9]+\.){3}[0-9]+" | head -n1)
+    echo "$host: $addr"
+    echo $host $addr >> $ADDRESSES
+done
