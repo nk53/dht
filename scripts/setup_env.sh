@@ -2,6 +2,7 @@
 export PROJECT_DIR=$HOME/dht
 export SCRIPT_DIR=$PROJECT_DIR/scripts
 export CONFIG_DIR=$PROJECT_DIR/config
+export OUTPUT_DIR=$PROJECT_DIR/output
 
 # configuration files
 export ADDRESSES=$CONFIG_DIR/ips

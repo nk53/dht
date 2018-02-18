@@ -14,7 +14,7 @@ awk '{print $1}' $ADDRESSES | while read hname; do
 # begin SSH template
 ssh -T -q $hname << TEMPLATE &
 cd $SCRIPT_DIR
-python $NODE_SCRIPT &
+python $NODE_SCRIPT 2> $OUTPUT_DIR/\$(hostname).err
 echo "$! : \$(hostname)" >> $PIDS
 TEMPLATE
 # end SSH template
