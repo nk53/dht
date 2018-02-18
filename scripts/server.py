@@ -14,6 +14,8 @@ class Server(Thread):
                 os.getenv("NODE_OUTPUT"),
                 self.hostname + "_server.out")
         print "outfile is:", outfilename
+        stdout.flush()
+        self.outfile = open(outfilename, 'w')
         super(Server, self).__init__(
             group=None, target=None, name="%s (server)" % self.hostname)
 
