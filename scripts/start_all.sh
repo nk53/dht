@@ -19,7 +19,7 @@ ssh -T -q $hname << TEMPLATE &
 cd $SCRIPT_DIR
 source setup_env.sh
 python $NODE_SCRIPT 2> $OUTPUT_DIR/\$(hostname).err > $OUTPUT_DIR/\$(hostname).out
-echo "$! : \$(hostname)" >> $PIDS
+echo "\$! : \$(hostname)" >> $PIDS
 TEMPLATE
 # end SSH template
 done
