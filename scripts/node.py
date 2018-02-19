@@ -56,5 +56,3 @@ print "Client thread started"
 
 client.join()
 print "Client stopped"
-
-stdout.flush()
