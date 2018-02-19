@@ -56,3 +56,6 @@ print "Client thread started"
 
 client.join()
 print "Client stopped"
+
+server.join()
+print "Server stopped"

@@ -9,6 +9,7 @@ class Server(Thread):
         self.hostname = socket.gethostname()
         print "out dir is:", os.getenv("OUTPUT_DIR")
         self.clients = clients
+        self.num_clients = len(clients)
         self.server_settings = server_settings
         self.backlog_size = backlog_size
         self.max_retries = max_retries
@@ -48,18 +49,41 @@ class Server(Thread):
         xlist = tuple()
         self.outfile.write("Reading messages" + os.linesep)
         self.outfile.flush()
+        # keep track of the number of successful PUT operations
+        num_puts = 0
+        num_done = 0
         while 1:
             ready_list = select(connected, wlist, xlist)[0]
             for conn in ready_list:
                 message = conn.recv(1024)
                 if not message:
                     break
+                # for debugging
                 self.outfile.write("Received message from %s%s" % (
                     conn.getpeername(), os.linesep))
                 self.outfile.write(message)
                 self.outfile.flush()
-        # everyone's connected, so quit
-        for conn in connected:
-            conn.close()
-        self.outfile.write("Done (%s)%s" % (self.hostname, os.linesep))
-        self.outfile.flush()
+                lines = message.split('\n')
+                self.outfile.write("Got %d lines\n" % len(lines))
+                for line in lines:
+                    command = line[:3]
+                    if command == 'GET':
+                        pass # TODO
+                    elif command == 'PUT':
+                        num_puts += 1
+                        self.outfile.write("PUT operations handled: %d%s" % (
+                            num_puts, os.linesep))
+                        # TODO: finish this
+                    elif command == 'END':
+                        num_done += 1
+                        self.outfile.write("Got END #%d\n" % num_done)
+                        self.outfile.flush()
+                        if num_done == self.num_clients:
+                            # close all connections and shutdown the server
+                            for conn in connected:
+                                conn.close()
+                            self.outfile.write(
+                                "Done (%s)%s" % (self.hostname, os.linesep))
+                            self.outfile.close()
+                            exit()
+

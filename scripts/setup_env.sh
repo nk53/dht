@@ -1,8 +1,9 @@
 # directories
 export PROJECT_DIR=$HOME/dht
-export SCRIPT_DIR=$PROJECT_DIR/scripts
 export CONFIG_DIR=$PROJECT_DIR/config
 export OUTPUT_DIR=$PROJECT_DIR/output
+export SCRIPT_DIR=$PROJECT_DIR/scripts
+export TRANSACTION_DIR=$PROJECT_DIR/transactions
 
 # configuration files
 export ADDRESSES=$CONFIG_DIR/ips
@@ -18,3 +19,7 @@ export KILL_ALL_PYTHONS=$SCIPRT_DIR/kill_all_pythons.sh
 
 # keeps track of running processes
 export PIDS=$CONFIG_DIR/pids
+
+# stored list of transactions, for testing purposes
+# files named node_0, node_1, node_2, ...
+export TRANSACTION_PREFIX=$TRANSACTION_DIR/node_
