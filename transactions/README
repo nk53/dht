@@ -1,0 +1,3 @@
+This directory contains a list of transactions for each node's client
+thread to perform. `node_0` will always be whatever host's name is first
+alphabetically, etc.
