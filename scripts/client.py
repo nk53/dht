@@ -30,12 +30,12 @@ class Client(Thread):
                 result = s.connect_ex(server)
                 if result == 0:
                     connected.append(s)
-                    s.sendall("%s's client is alive" % self.hostname)
+                    s.sendall("%s's client is alive\n" % self.hostname)
                     break
                 else:
                     self.outfile.write(
-                        "Error connecting to %s, retry(%d)" % (
-                        server[0], tries))
+                        "Error connecting to %s, retry(%d)%s" % (
+                        server[0], tries, os.linesep))
                     tries += 1
                     sleep(3)
             self.outfile.write("Connection with %s successful%s" %
@@ -50,6 +50,7 @@ class Client(Thread):
         """Waits for all nodes to respond"""
         connected = self.connected
         # everyone's connected, so quit
+        self.outfile.write("Closing connections%s" % os.linesep)
         for conn in connected:
             conn.close()
         self.outfile.write("Done (%s)%s" % (self.hostname, os.linesep))
