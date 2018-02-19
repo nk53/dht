@@ -26,19 +26,18 @@ class Client(Thread):
                     os.linesep)
             self.outfile.flush()
             while tries <= self.max_retries:
-                #try:
                 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                s.connect(server)
-                connected.append(s)
-                s.sendall("%s's client is alive" % self.hostname)
-                break
-                #except Exception as e:
-                #print "Error connecting to %s, retry (%d)" % (
-                #        server[0], tries)
-                #print "Exception message: %s" % e.message
-                #stdout.flush()
-                #sleep(3)
-                #tries += 1
+                result = s.connect_ex(server)
+                if result == 0:
+                    connected.append(s)
+                    s.sendall("%s's client is alive" % self.hostname)
+                    break
+                else:
+                    self.outfile.write(
+                        "Error connecting to %s, retry(%d)" % (
+                        server[0], tries))
+                    tries += 1
+                    sleep(3)
             self.outfile.write("Connection with %s successful%s" %
                     (server[0], os.linesep))
             self.outfile.flush() 
