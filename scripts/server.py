@@ -44,15 +44,15 @@ class Server(Thread):
 
         self.outfile.write("Connected with %s clients%s" % (
             len(connected), os.linesep))
-        wlist = (None,)
-        xlist = (None,)
+        wlist = tuple()
+        xlist = tuple()
         self.outfile.write("Reading messages" + os.linesep)
         self.outfile.flush()
         while 1:
-            ready_list = select(connected, wlist, xlist)
+            ready_list = select(connected, wlist, xlist)[0]
             for conn in ready_list:
-                self.outfile.write("Received message from " + conn +
-                        os.linesep)
+                self.outfile.write("Received message from %s%s" % (
+                    conn.getpeername(), os.linesep))
                 message = conn.recv(1024)
                 self.outfile.write(message)
                 self.outfile.flush()
