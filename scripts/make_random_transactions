@@ -1,9 +1,14 @@
 #!/usr/bin/env python
 from os import getenv
-from random import random as r
+from random import random as random_float
+
+random_int = lambda max_num: int(random_float() * max_num)
+
+r = lambda: random_int(100)
 
 for i in xrange(100):
-    # 50% chance of 'INS' vs. 'REM'
-    tx_type = (r() > 0.5) and 'INS' or 'REM'
-    amount = int(r() * 100)
-    print tx_type, amount
+    # 60% chance of 'GET' vs. 'PUT'
+    transaction_type = (random_float() < 0.6) and 'GET' or 'PUT'
+    # random integers for both
+    key, value = r(), r()
+    print transaction_type, key, value
