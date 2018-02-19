@@ -51,9 +51,11 @@ class Server(Thread):
         while 1:
             ready_list = select(connected, wlist, xlist)[0]
             for conn in ready_list:
+                message = conn.recv(1024)
+                if not message:
+                    break
                 self.outfile.write("Received message from %s%s" % (
                     conn.getpeername(), os.linesep))
-                message = conn.recv(1024)
                 self.outfile.write(message)
                 self.outfile.flush()
         # everyone's connected, so quit
