@@ -1,0 +1,24 @@
+#!/usr/bin/env python
+# Usage: ./test_single_hash file_1 [file_2 ...]
+# Performs transactions from the given files, and displays the resulting
+# table
+
+from scripts.hash_single_thread import Table
+from sys import argv
+
+table = Table(100)
+for filename in argv[1:]:
+    with open(filename, 'r') as infile:
+        for line in infile:
+            # process each line's command, and display the result
+            command = line.strip().split()
+            k, v = map(int, command[1:])
+            if command[0] == 'GET':
+                result = str(table.get(k))
+                print "GET(%d): %s" % (k, result)
+            else:
+                result = str(table.put(k, v))
+                print "PUT(%d, %d): %s" % (k, v, result)
+
+# display final resulting table
+print table
