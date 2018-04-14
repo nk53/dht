@@ -4,7 +4,11 @@ source setup_env.sh
 
 cd $OUTPUT_DIR
 
+echo
 for fname in *; do
-    echo "== $fname =="
-    cat $fname
+    if [[ -z "$1" || "$fname" =~ "$1" ]]; then
+        echo "==== $fname ===="
+        cat $fname
+        echo
+    fi
 done
