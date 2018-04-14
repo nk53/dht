@@ -10,15 +10,15 @@ $ ./setup_env.sh
 ```
 
 The DHT project uses Python version 3.6, which is not the default version
-of Python on Centos 6.8. Instead, a virtual environment has been created
-where Python 3.6 is the default version of Python.
+of Python on Centos 6.8. Instead, a virtual environment is created where
+Python 3.6 is the default version of Python.
 
-Once you've done the above, you can activate the virtual environment by
-using the following command (alias) from the home directory:
+Once you've ran the above commands, you can activate the virtual
+environment by using the following command (alias) from the home directory:
 ```
     $ dht
 ```
-This will also automatically place you in the DHT main projet directory
+This will also automatically place you in the DHT main project directory
 located at ~/dht
 
 If you don't want to activate a virtual environment, you can also access
