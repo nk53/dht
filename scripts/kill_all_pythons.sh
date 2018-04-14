@@ -3,7 +3,9 @@
 
 source setup_env.sh
 
-awk '{print $1}' $ADDRESSES | while read hname; do
+hnames=($(cat $HOST_LIST))
+
+for hname in ${hnames[@]}; do
     echo "Checking $hname"
     ssh -q -T $hname < $KILL_THIS_PYTHON &
 done

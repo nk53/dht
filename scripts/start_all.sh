@@ -11,14 +11,17 @@ fi
 rm $OUTPUT_DIR/*err
 rm $OUTPUT_DIR/*out
 
+hnames=($(awk '{print $1}' $SSH_ADDRESSES))
+
 # log into each host, then start the node
-awk '{print $1}' $ADDRESSES | while read hname; do
+for hname in ${hnames[@]}; do
     echo "Starting $hname"
 # begin SSH template
 ssh -T -q $hname << TEMPLATE &
 cd $SCRIPT_DIR
 source setup_env.sh
-python $NODE_SCRIPT 2> $OUTPUT_DIR/\$(hostname).err > $OUTPUT_DIR/\$(hostname).out
+echo "$NODE_SCRIPT 2> $OUTPUT_DIR/\$(hostname).err > $OUTPUT_DIR/\$(hostname).out"
+python $NODE_SCRIPT 2> $OUTPUT_DIR/\$(hostname).err > $OUTPUT_DIR/\$(hostname).out &
 echo "\$! : \$(hostname)" >> $PIDS
 TEMPLATE
 # end SSH template

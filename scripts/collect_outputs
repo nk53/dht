@@ -1,0 +1,10 @@
+#!/bin/bash
+# takes locally stored output files and places them on this node's output dir
+
+source setup_env.sh
+
+hnames=( $(awk '{print $1}' $SSH_ADDRESSES) )
+
+for hname in ${hnames[@]}; do
+    scp $hname:$OUTPUT_DIR/* $OUTPUT_DIR
+done

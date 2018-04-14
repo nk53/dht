@@ -1,0 +1,10 @@
+#!/bin/bash
+# determines this name of this host by comparing config/ips with ifconfig
+
+source setup_env.sh
+
+# get our IP
+eth0_ip=$(ifconfig eth0 |
+    grep "inet addr" |
+    sed "s/^[^:]*://" |
+    sed "s/ .*//")

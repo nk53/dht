@@ -4,3 +4,4 @@ scripts/*pyc
 config/hosts*
 config/ips
 config/pids
+config/ssh_ips

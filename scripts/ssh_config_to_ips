@@ -1,0 +1,21 @@
+#!/bin/bash
+# reads host configuration info from ~/.ssh/config and generates ip list
+
+source setup_env.sh
+
+# clear existing address list
+if [ -e "$SSH_ADDRESSES" ]; then
+    rm $SSH_ADDRESSES
+fi
+touch $SSH_ADDRESSES
+
+# read addresses/ip pairs from SSH configuration
+cat $HOME/.ssh/config | while read line; do
+    if [ -n "$(echo -n $line | grep HOST)" ]; then
+        hname=$(echo -n $line | sed "s/HOST //g")
+    elif [ -n "$(echo -n $line | grep HostName)" ]; then
+        addr=$(echo -n $line | sed "s/^[^0-9]*//g")
+        echo $hname $addr >> $SSH_ADDRESSES
+        echo $hname $addr
+    fi
+done

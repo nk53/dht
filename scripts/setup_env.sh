@@ -6,7 +6,8 @@ export SCRIPT_DIR=$PROJECT_DIR/scripts
 export TRANSACTION_DIR=$PROJECT_DIR/transactions
 
 # configuration files
-export ADDRESSES=$CONFIG_DIR/ips
+export SSH_ADDRESSES=$CONFIG_DIR/ssh_ips # hostnames according to SSH config
+export ADDRESSES=$CONFIG_DIR/ips         # hostnames according to gethostname()
 export HOST_LIST=$CONFIG_DIR/hosts
 export SETTINGS=$CONFIG_DIR/config.txt
 

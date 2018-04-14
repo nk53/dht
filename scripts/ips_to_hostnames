@@ -1,0 +1,22 @@
+#!/bin/bash
+# overwrites config/ips using the hostname according to gethostname()
+
+source setup_env.sh
+
+if [ -e $ADDRESSES ]; then
+    rm $ADDRESSES
+fi
+
+# store host names and IPs as arrays
+orignames=($(awk '{print $1}' $SSH_ADDRESSES))
+ipaddrs=($(awk '{print $2}' $SSH_ADDRESSES))
+
+end_iter=$(( ${#orignames[@]} - 1))
+
+for i in `seq 0 $end_iter`; do
+    origname=${orignames[$i]}
+    ipaddr=${ipaddrs[$i]}
+    hname=$(ssh $origname hostname)
+    echo $hname $ipaddr >> $ADDRESSES
+    echo $hname $ipaddr 
+done
