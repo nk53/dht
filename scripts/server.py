@@ -47,6 +47,7 @@ class Server(Thread):
 
         self.outfile.write("Connected with {} clients{}".format(
             len(connected), os.linesep))
+        self.outfile.flush()
         wlist = tuple()
         xlist = tuple()
         self.outfile.write("Reading messages" + os.linesep)
