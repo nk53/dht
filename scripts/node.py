@@ -51,7 +51,6 @@ print("Starting client")
 # connect by hostname, not IP
 client = Client(CLIENT_SETTINGS, CLIENT_BACKLOG_SIZE, MAX_RETRIES)
 client.start()
-#client.close_all()
 print("Client thread started")
 stdout.flush()
 

@@ -62,6 +62,7 @@ class Server(Thread):
                 message = conn.recv(1024)
                 if not message:
                     break
+                message = message.decode('ascii')
                 # for debugging
                 self.outfile.write("Received message from {}{}".format(
                     conn.getpeername(), os.linesep))

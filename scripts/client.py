@@ -19,7 +19,6 @@ class Client(Thread):
                 os.getenv("OUTPUT_DIR"),
                 self.hostname + "_client.out")
         self.outfile = open(outfilename, 'w')
-        print("outfile name is: ", outfilename)
         # read transactions from a node-specific file directly into a list
         transaction_filename = os.getenv(
                 "TRANSACTION_PREFIX") + str(self.node_n)
@@ -28,7 +27,8 @@ class Client(Thread):
             self.transactions = [line for line in fh]
         # setup thread settings
         super(Client, self).__init__(
-            group=None, target=None, name="%s (client)" % self.hostname)
+            group=None, target=None, name="{} (client)".format(
+            self.hostname))
 
     def run(self):
         # establish a connection with all servers
@@ -44,17 +44,22 @@ class Client(Thread):
                 result = s.connect_ex(server)
                 if result == 0:
                     connected.append(s)
-                    s.sendall("%s's client is alive\n" % self.hostname)
+                    s.sendall(
+                        bytes(
+                            "{}'s client is alive\n".format(self.hostname),
+                            'ascii'
+                        )
+                    )
                     break
                 else:
                     self.outfile.write(
-                        "Error connecting to %s, retry(%d)%s" % (
+                        "Error connecting to {}, retry({}){}".format(
                         server[0], tries, os.linesep))
                     self.outfile.flush()
                     tries += 1
                     sleep(3)
-            self.outfile.write("Connection with %s successful%s" %
-                    (server[0], os.linesep))
+            self.outfile.write("Connection with {} successful{}".format(
+                    server[0], os.linesep))
             self.outfile.flush() 
         self.connected = connected
         # process each transaction sequentially (slow)
@@ -66,18 +71,18 @@ class Client(Thread):
             server_index = int(key) % num_servers
             target_server = connected[server_index]
             # send the command as a '\n'-terminated string
-            target_server.sendall(command)
-        self.outfile.write("Writing %d ENDs\n" % len(connected))
+            target_server.sendall(bytes(command, 'ascii'))
+        self.outfile.write("Writing {} ENDs\n".format(len(connected)))
         self.outfile.flush()
         for conn in connected:
-            conn.sendall('END\n')
+            conn.sendall(b'END\n')
 
     def close_all(self):
         """Waits for all nodes to respond"""
         connected = self.connected
         # everyone's connected, so quit
-        self.outfile.write("Closing connections%s" % os.linesep)
+        self.outfile.write("Closing connections{}".format(os.linesep))
         for conn in connected:
             conn.close()
-        self.outfile.write("Done (%s)%s" % (self.hostname, os.linesep))
+        self.outfile.write("Done ({}){}".format(self.hostname, os.linesep))
         self.outfile.flush()
