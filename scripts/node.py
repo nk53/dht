@@ -34,17 +34,17 @@ SERVER_BACKLOG_SIZE = int(options['backlog'])
 
 print("Starting server")
 # connect by hostname, not IP
-clients = zip(*host_list)[0]
+clients = list(zip(*host_list))[0]
 server = Server(clients, SERVER_SETTINGS, SERVER_BACKLOG_SIZE,
         MAX_RETRIES)
 server.start()
 print("Server thread started")
 
 # settings for client end of sockets
-SERVERS = zip(*host_list)[0]
+SERVERS = list(zip(*host_list))[0]
 CLIENT_PORT = int(options['port'])
 # package server list into tuples with: (hostname, port)
-CLIENT_SETTINGS = zip(SERVERS, (CLIENT_PORT,) * len(SERVERS))
+CLIENT_SETTINGS = list(zip(SERVERS, (CLIENT_PORT,) * len(SERVERS)))
 CLIENT_BACKLOG_SIZE = int(options['backlog'])
 
 print("Starting client")
