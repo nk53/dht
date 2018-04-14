@@ -44,12 +44,10 @@ class Client(Thread):
                 result = s.connect_ex(server)
                 if result == 0:
                     connected.append(s)
-                    s.sendall(
-                        bytes(
-                            "{}'s client is alive\n".format(self.hostname),
-                            'ascii'
-                        )
-                    )
+                            
+                    self.send_string_message(
+                        "{}'s client is alive\n".format(self.hostname),
+                        s)
                     break
                 else:
                     self.outfile.write(
@@ -76,6 +74,10 @@ class Client(Thread):
         self.outfile.flush()
         for conn in connected:
             conn.sendall(b'END\n')
+
+    def send_string_message(self, message, recipient_socket):
+        """Converts ascii message to byte-string, then writes to socket"""
+        recipient_socket.sendall(bytes(message, 'ascii'))
 
     def close_all(self):
         """Waits for all nodes to respond"""

@@ -59,10 +59,9 @@ class Server(Thread):
         while not done:
             ready_list = select(connected, wlist, xlist)[0]
             for conn in ready_list:
-                message = conn.recv(1024)
+                message = self.receive_string_message(conn)
                 if not message:
                     break
-                message = message.decode('ascii')
                 # for debugging
                 self.outfile.write("Received message from {}{}".format(
                     conn.getpeername(), os.linesep))
@@ -89,4 +88,14 @@ class Server(Thread):
                                 self.hostname, os.linesep))
                             self.outfile.close()
                             done = True
+
+    def receive_string_message(self, sender_connection):
+        message = sender_connection.recv(1024)
+        if message:
+            message = message.decode('ascii')
+        return message
+
+    def send_string_message(self, message, recipient_socket):
+        """Converts ascii message to byte-string, then writes to socket"""
+        recipient_socket.sendall(bytes(message, 'ascii'))
 
