@@ -18,6 +18,7 @@ for hname in ${hnames[@]}; do
     echo "Starting $hname"
 # begin SSH template
 ssh -T -q $hname << TEMPLATE &
+dht
 cd $SCRIPT_DIR
 source setup_env.sh
 echo "$NODE_SCRIPT 2> $OUTPUT_DIR/\$(hostname)_node.err > $OUTPUT_DIR/\$(hostname)_node.out"

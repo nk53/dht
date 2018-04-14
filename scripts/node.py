@@ -32,13 +32,13 @@ SERVER_PORT = int(options['port'])
 SERVER_SETTINGS = (SERVER_HOST, SERVER_PORT)
 SERVER_BACKLOG_SIZE = int(options['backlog'])
 
-print "Starting server"
+print("Starting server")
 # connect by hostname, not IP
 clients = zip(*host_list)[0]
 server = Server(clients, SERVER_SETTINGS, SERVER_BACKLOG_SIZE,
         MAX_RETRIES)
 server.start()
-print "Server thread started"
+print("Server thread started")
 
 # settings for client end of sockets
 SERVERS = zip(*host_list)[0]
@@ -47,18 +47,18 @@ CLIENT_PORT = int(options['port'])
 CLIENT_SETTINGS = zip(SERVERS, (CLIENT_PORT,) * len(SERVERS))
 CLIENT_BACKLOG_SIZE = int(options['backlog'])
 
-print "Starting client"
+print("Starting client")
 # connect by hostname, not IP
 client = Client(CLIENT_SETTINGS, CLIENT_BACKLOG_SIZE, MAX_RETRIES)
 client.start()
 #client.close_all()
-print "Client thread started"
+print("Client thread started")
 stdout.flush()
 
 client.join()
-print "Client stopped"
+print("Client stopped")
 stdout.flush()
 
 server.join()
-print "Server stopped"
+print("Server stopped")
 stdout.flush()

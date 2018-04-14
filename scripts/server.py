@@ -7,7 +7,7 @@ from threading import Thread
 class Server(Thread):
     def __init__(self, clients, server_settings, backlog_size, max_retries):
         self.hostname = socket.gethostname()
-        print "out dir is:", os.getenv("OUTPUT_DIR")
+        print("out dir is:", os.getenv("OUTPUT_DIR"))
         self.clients = clients
         self.num_clients = len(clients)
         self.server_settings = server_settings
@@ -18,7 +18,8 @@ class Server(Thread):
                 self.hostname + "_server.out")
         self.outfile = open(outfilename, 'w')
         super(Server, self).__init__(
-            group=None, target=None, name="%s (server)" % self.hostname)
+            group=None, target=None,
+            name="{} (server)".format(self.hostname))
 
     def run(self):
         """Setup socket and start listening for connections"""
@@ -28,8 +29,9 @@ class Server(Thread):
         # make a socket for each client
         socket_list = []
         self.socket = s
-        self.outfile.write("Listening for connections on port (%d)%s" %
-                (self.server_settings[1], os.linesep))
+        self.outfile.write(
+                "Listening for connections on port ({}){}".format(
+                self.server_settings[1], os.linesep))
         self.outfile.flush()
         self.get_quorum()
 
@@ -43,7 +45,7 @@ class Server(Thread):
             conn, addr = s.accept()
             connected.append(conn)
 
-        self.outfile.write("Connected with %s clients%s" % (
+        self.outfile.write("Connected with {} clients{}".format(
             len(connected), os.linesep))
         wlist = tuple()
         xlist = tuple()
@@ -60,27 +62,29 @@ class Server(Thread):
                 if not message:
                     break
                 # for debugging
-                self.outfile.write("Received message from %s%s" % (
+                self.outfile.write("Received message from {}{}".format(
                     conn.getpeername(), os.linesep))
                 self.outfile.write(message)
                 lines = message.split('\n')
-                self.outfile.write("Got %d lines\n" % len(lines))
+                self.outfile.write("Got {} lines\n".format(len(lines)))
                 for line in lines:
                     command = line[:3]
                     if command == 'GET':
                         pass # TODO
                     elif command == 'PUT':
                         num_puts += 1
-                        self.outfile.write("PUT operations handled: %d%s" % (
+                        self.outfile.write(
+                            "PUT operations handled: {}{}".format(
                             num_puts, os.linesep))
                     elif command == 'END':
                         num_done += 1
-                        self.outfile.write("Got END #%d\n" % num_done)
+                        self.outfile.write("Got END #{}\n".format(num_done))
                         self.outfile.flush()
                         if num_done == self.num_clients:
                             # stop server process
                             self.outfile.write(
-                                "Done (%s)%s" % (self.hostname, os.linesep))
+                                "Done ({}){}".format(
+                                self.hostname, os.linesep))
                             self.outfile.close()
                             done = True
 
