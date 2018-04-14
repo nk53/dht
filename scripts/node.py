@@ -53,9 +53,12 @@ client = Client(CLIENT_SETTINGS, CLIENT_BACKLOG_SIZE, MAX_RETRIES)
 client.start()
 #client.close_all()
 print "Client thread started"
+stdout.flush()
 
 client.join()
 print "Client stopped"
+stdout.flush()
 
 server.join()
 print "Server stopped"
+stdout.flush()

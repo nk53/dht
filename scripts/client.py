@@ -49,6 +49,7 @@ class Client(Thread):
                     self.outfile.write(
                         "Error connecting to %s, retry(%d)%s" % (
                         server[0], tries, os.linesep))
+                    self.outfile.flush()
                     tries += 1
                     sleep(3)
             self.outfile.write("Connection with %s successful%s" %
@@ -66,9 +67,9 @@ class Client(Thread):
             # send the command as a '\n'-terminated string
             target_server.sendall(command)
         self.outfile.write("Writing %d ENDs\n" % len(connected))
+        self.outfile.flush()
         for conn in connected:
             conn.sendall('END\n')
-        self.close_all()
 
     def close_all(self):
         """Waits for all nodes to respond"""

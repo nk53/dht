@@ -52,7 +52,8 @@ class Server(Thread):
         # keep track of the number of successful PUT operations
         num_puts = 0
         num_done = 0
-        while 1:
+        done = False
+        while not done:
             ready_list = select(connected, wlist, xlist)[0]
             for conn in ready_list:
                 message = conn.recv(1024)
@@ -62,7 +63,6 @@ class Server(Thread):
                 self.outfile.write("Received message from %s%s" % (
                     conn.getpeername(), os.linesep))
                 self.outfile.write(message)
-                self.outfile.flush()
                 lines = message.split('\n')
                 self.outfile.write("Got %d lines\n" % len(lines))
                 for line in lines:
@@ -73,17 +73,14 @@ class Server(Thread):
                         num_puts += 1
                         self.outfile.write("PUT operations handled: %d%s" % (
                             num_puts, os.linesep))
-                        # TODO: finish this
                     elif command == 'END':
                         num_done += 1
                         self.outfile.write("Got END #%d\n" % num_done)
                         self.outfile.flush()
                         if num_done == self.num_clients:
-                            # close all connections and shutdown the server
-                            for conn in connected:
-                                conn.close()
+                            # stop server process
                             self.outfile.write(
                                 "Done (%s)%s" % (self.hostname, os.linesep))
                             self.outfile.close()
-                            exit()
+                            done = True
 
