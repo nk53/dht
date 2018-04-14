@@ -1,0 +1,29 @@
+#!/bin/bash
+
+if [ -z "$1" ]; then
+    echo "Usage: $(basename $0) path_to_sync"
+    exit 1
+fi
+
+for dest in "$@"; do
+    if [ "${dest:0:1}" != "/" ]; then
+        dest=$PWD/$dest
+    fi
+
+    if [ ! -e $dest ]; then
+        echo "$1 does not exist"
+        exit 2
+    fi
+
+    # read addresses/ip pairs from SSH configuration
+    cat $HOME/.ssh/config | while read line; do
+        if [ -n "$(echo -n $line | grep HOST)" ]; then
+            hname=$(echo -n $line | sed "s/HOST //g")
+        elif [ -n "$(echo -n $line | grep HostName)" ]; then
+            addr=$(echo -n $line | sed "s/^[^0-9]*//g")
+            # copy file to each host
+            echo "copying to $hname:$dest"
+            scp $dest $hname:$dest
+        fi
+    done
+done

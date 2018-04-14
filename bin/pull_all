@@ -1,0 +1,9 @@
+#!/bin/bash
+
+hnames=( $(awk '{print $1}' $HOME/dht/config/ssh_ips) )
+
+# read addresses/ip pairs from SSH configuration
+for hname in ${hnames[@]}; do
+    echo "Pulling from $hname"
+    ssh -q -T $hname "cd dht; git pull"
+done
