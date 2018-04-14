@@ -9,7 +9,7 @@ class Client(Thread):
     def __init__(self, client_settings, backlog_size, max_retries):
         # which node are we?
         self.hostname = socket.gethostname()
-        self.node_n = zip(*client_settings)[0].index(self.hostname)
+        self.node_n = list(zip(*client_settings))[0].index(self.hostname)
         # client settings is a list of 2-tuples: (server_hostname, port)
         self.client_settings = client_settings
         self.max_retries = max_retries
@@ -19,6 +19,7 @@ class Client(Thread):
                 os.getenv("OUTPUT_DIR"),
                 self.hostname + "_client.out")
         self.outfile = open(outfilename, 'w')
+        print("outfile name is: ", outfilename)
         # read transactions from a node-specific file directly into a list
         transaction_filename = os.getenv(
                 "TRANSACTION_PREFIX") + str(self.node_n)
