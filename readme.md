@@ -1,7 +1,7 @@
 ## Initial setup (Centos 6.8)
 
 ```
-$ git clone https://github.com ~/dht
+$ git clone https://github.com/nk53/dht.git ~/dht
 $ cd ~/dht
 $ mv bin ~
 $ mv setup_env.sh ~
