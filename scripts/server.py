@@ -71,7 +71,8 @@ class Server(Thread):
                 for line in lines:
                     command = line[:3]
                     if command == 'GET':
-                        pass # TODO
+                        self.send_string_message("You made a GET request",
+                                conn)
                     elif command == 'PUT':
                         num_puts += 1
                         self.outfile.write(

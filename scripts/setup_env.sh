@@ -7,7 +7,8 @@ export TRANSACTION_DIR=$PROJECT_DIR/transactions
 
 # configuration files
 export SSH_ADDRESSES=$CONFIG_DIR/ssh_ips # hostnames according to SSH config
-export ADDRESSES=$CONFIG_DIR/ips         # hostnames according to gethostname()
+export ADDRESSES=$CONFIG_DIR/ips      # hostnames according to gethostname()
+export ADDR_SINGLE=$CONFIG_DIR/ips_single # for testing on one node
 export HOST_LIST=$CONFIG_DIR/hosts
 export SETTINGS=$CONFIG_DIR/config.txt
 

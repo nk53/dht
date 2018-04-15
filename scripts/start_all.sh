@@ -8,6 +8,29 @@ if [ -e "$PIDS" ]; then
     exit 1
 fi
 
+if [ -e ${ADDRESSES}_multi ]; then
+    # we recently ran a single test; we need to undo the settings
+    echo "Preparing for multi-node test ..."
+
+    # the single-threaded tests usually take a while to release
+    # the port/address binding (not sure why); so we'll just cycle them
+    port_n=$(grep port $SETTINGS | sed "s/[^0-9]*//")
+    if (( $port_n % 100 )); then
+        let "port_n++"
+    else
+        let "port_n = port_n - 99"
+    fi
+
+    sed --in-place=".bak" "s/\(port[^0-9]*\)[0-9]*/\1$port_n/" $SETTINGS
+
+    # swap single and multi files
+    mv $ADDRESSES $ADDR_SINGLE
+    mv ${ADDRESSES}_multi $ADDRESSES
+
+    # sync config.txt with all nodes
+    cp_all $SETTINGS
+fi
+
 hnames=($(awk '{print $1}' $SSH_ADDRESSES))
 
 # log into each host, then start the node

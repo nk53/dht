@@ -3,6 +3,10 @@
 # Performs transactions from the given files, and displays the resulting
 # table
 
+#
+# NOTICE: This script is deprecated. Use scripts/test_single.sh
+#
+
 from scripts.hash_single_thread import Table
 from sys import argv
 

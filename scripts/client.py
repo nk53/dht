@@ -63,21 +63,36 @@ class Client(Thread):
         # process each transaction sequentially (slow)
         num_servers = self.num_servers
         for command in self.transactions:
-            # obtain the first parameter (key) from the command
+            # get request type
+            request_type = command[:3]
+            # get first parameter (key) from the command
             key = command[4:command[4:].find(' ') + 4]
             # determine which server is responsible for handling this tx
             server_index = int(key) % num_servers
             target_server = connected[server_index]
             # send the command as a '\n'-terminated string
             target_server.sendall(bytes(command, 'ascii'))
+            # wait for response if we made a GET request
+            if request_type == 'GET':
+                message = self.receive_string_message(target_server)
+                print("Message was {}".format(message))
         self.outfile.write("Writing {} ENDs\n".format(len(connected)))
         self.outfile.flush()
         for conn in connected:
             conn.sendall(b'END\n')
 
+    def receive_string_message(self, sender_connection):
+        message = sender_connection.recv(1024)
+        if message:
+            message = message.decode('ascii')
+        return message
+
     def send_string_message(self, message, recipient_socket):
         """Converts ascii message to byte-string, then writes to socket"""
-        recipient_socket.sendall(bytes(message, 'ascii'))
+        print(message)
+        encoded_m = bytes(message, 'ascii')
+        #recipient_socket.sendall(bytes(message, 'ascii'))
+        recipient_socket.sendall(encoded_m)
 
     def close_all(self):
         """Waits for all nodes to respond"""
