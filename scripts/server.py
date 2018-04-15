@@ -3,9 +3,11 @@ import socket
 from select import select
 from sys import stdout
 from threading import Thread
+from hash_single_thread import Table
 
 class Server(Thread):
     def __init__(self, clients, server_settings, backlog_size, max_retries):
+        # setup connection info
         self.hostname = socket.gethostname()
         print("out dir is:", os.getenv("OUTPUT_DIR"))
         self.clients = clients
@@ -13,10 +15,13 @@ class Server(Thread):
         self.server_settings = server_settings
         self.backlog_size = backlog_size
         self.max_retries = max_retries
+        # setup logging info
         outfilename = os.path.join(
                 os.getenv("OUTPUT_DIR"),
                 self.hostname + "_server.out")
         self.outfile = open(outfilename, 'w')
+        # setup table
+        self.table = Table(100)
         super(Server, self).__init__(
             group=None, target=None,
             name="{} (server)".format(self.hostname))
@@ -73,11 +78,15 @@ class Server(Thread):
                     if command == 'GET':
                         self.send_string_message("You made a GET request",
                                 conn)
+                        # TODO: perform GET, give client the value
                     elif command == 'PUT':
+                        key, value = map(int, line[4:].split())
+                        result = self.table.put(key, value)
                         num_puts += 1
                         self.outfile.write(
                             "PUT operations handled: {}{}".format(
                             num_puts, os.linesep))
+                        # TODO: inform client of result
                     elif command == 'END':
                         num_done += 1
                         self.outfile.write("Got END #{}\n".format(num_done))
