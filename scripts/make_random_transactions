@@ -6,9 +6,12 @@ random_int = lambda max_num: int(random_float() * max_num)
 
 r = lambda: random_int(100)
 
-for i in xrange(100):
+for i in range(100):
     # 60% chance of 'GET' vs. 'PUT'
     transaction_type = (random_float() < 0.6) and 'GET' or 'PUT'
+    if transaction_type == 'GET':
+        args = [r()]
+    else:
+        args = [r(), r()]
     # random integers for both
-    key, value = r(), r()
-    print transaction_type, key, value
+    print(transaction_type, *args)

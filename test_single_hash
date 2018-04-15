@@ -12,11 +12,12 @@ for filename in argv[1:]:
         for line in infile:
             # process each line's command, and display the result
             command = line.strip().split()
-            k, v = map(int, command[1:])
             if command[0] == 'GET':
+                k = int(command[1])
                 result = str(table.get(k))
                 print("GET({}): {}".format(k, result))
             else:
+                k, v = map(int, command[1:])
                 result = str(table.put(k, v))
                 print("PUT({}, {}): {}".format(k, v, result))
 

@@ -66,9 +66,11 @@ class Client(Thread):
             # get request type
             request_type = command[:3]
             # get first parameter (key) from the command
-            key = command[4:command[4:].find(' ') + 4]
+            #key = command[4:command[4:].find(' ') + 4]
+            args = list(map(int, command[4:].split()))
+            key = args[0]
             # determine which server is responsible for handling this tx
-            server_index = int(key) % num_servers
+            server_index = key % num_servers
             target_server = connected[server_index]
             # send the command as a '\n'-terminated string
             target_server.sendall(bytes(command, 'ascii'))
