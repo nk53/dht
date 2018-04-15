@@ -54,7 +54,7 @@ class Client(Thread):
                 if result == 0:
                     connected.append(s)
                     self.send_string_message(
-                        self.message_id,
+                        self.next_message_id,
                         "{}'s client is alive\n".format(self.hostname),
                         s)
                     break
@@ -71,6 +71,7 @@ class Client(Thread):
         self.connected = connected
         # process each transaction sequentially (slow)
         num_servers = self.num_servers
+        self.next_message_id += self.num_nodes
         for command in self.transactions:
             # get request type
             request_type = command[:3]
@@ -82,22 +83,25 @@ class Client(Thread):
             server_index = key % num_servers
             target_server = connected[server_index]
             # send the command as a '\n'-terminated string
-            target_server.sendall(bytes(command, 'ascii'))
+            self.send_string_message(self.next_message_id,
+                    command, target_server)
             # wait for response if we made a GET request
             if request_type == 'GET':
-                result = self.receive_string_message(target_server)
+                message_id, result = self.receive_string_message(
+                        target_server)
                 self.outfile.write("GET({}): {}\n".format(key, result))
             elif request_type != 'END':
                 value = args[1]
-                result = self.receive_string_message(target_server)
+                message_id, result = self.receive_string_message(
+                        target_server)
                 self.outfile.write("PUT({}, {}): {}\n".format(
                     key, value, result))
             # make sure messages have unique message ID
-            self.message_id += self.num_nodes
+            self.next_message_id += self.num_nodes
         self.outfile.write("Writing {} ENDs\n".format(len(connected)))
         self.outfile.flush()
         for conn in connected:
-            conn.sendall(b'END\n')
+            self.send_string_message(self.next_message_id, "END\n", conn)
 
     def receive_string_message(self, sender_connection):
         """Receives and decodes a message from a client
@@ -120,7 +124,7 @@ class Client(Thread):
         `counter` should be an unsigned short corresponding to a unique
         message chain ID
         """
-        counter.to_bytes(2, byteorder='big')
+        counter = counter.to_bytes(2, byteorder='big')
         encoded_m = bytes(message, 'ascii')
         # send message prepended by 2-byte message ID
         recipient_socket.sendall(counter + encoded_m)

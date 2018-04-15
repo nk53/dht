@@ -64,7 +64,7 @@ class Server(Thread):
         while not done:
             ready_list = select(connected, wlist, xlist)[0]
             for conn in ready_list:
-                message = self.receive_string_message(conn)
+                message_id, message = self.receive_string_message(conn)
                 if not message:
                     break
                 # for debugging
@@ -122,7 +122,7 @@ class Server(Thread):
         `counter` should be an unsigned short corresponding to a unique
         message chain ID
         """
-        counter.to_bytes(2, byteorder='big')
+        counter = counter.to_bytes(2, byteorder='big')
         encoded_m = bytes(message, 'ascii')
         # send message prepended by 2-byte message ID
         recipient_socket.sendall(counter + encoded_m)
