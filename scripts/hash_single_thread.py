@@ -19,10 +19,11 @@ class Table:
         
         For the sake of simplicity, any put that would cause a collision
         will simply not occur."""
-        index, value_in_table = self.lookup(key)
-        if value_in_table != None:
-            return False
+        #index, value_in_table = self.lookup(key)
+        #if value_in_table != None:
+        #    return False
 
+        index = key % self.num_buckets
         self.buckets[index] = value
         return True
 
