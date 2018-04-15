@@ -76,8 +76,8 @@ class Client(Thread):
             target_server.sendall(bytes(command, 'ascii'))
             # wait for response if we made a GET request
             if request_type == 'GET':
-                message = self.receive_string_message(target_server)
-                self.outfile.write("Message was {}\n".format(message))
+                result = self.receive_string_message(target_server)
+                self.outfile.write("GET({}): {}\n".format(key, result))
         self.outfile.write("Writing {} ENDs\n".format(len(connected)))
         self.outfile.flush()
         for conn in connected:

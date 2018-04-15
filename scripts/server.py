@@ -78,8 +78,7 @@ class Server(Thread):
                     if command == 'GET':
                         key = int(line[4:])
                         result = self.table.get(key)
-                        message = "{} = {}".format(line, result)
-                        self.send_string_message(message, conn)
+                        self.send_string_message(str(result), conn)
                     elif command == 'PUT':
                         key, value = map(int, line[4:].split())
                         result = self.table.put(key, value)
