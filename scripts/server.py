@@ -78,7 +78,8 @@ class Server(Thread):
                     if command == 'GET':
                         key = int(line[4:])
                         result = self.table.get(key)
-                        self.send_string_message(str(result), conn)
+                        # TODO: keep track of client's message IDs
+                        self.send_string_message(0, str(result), conn)
                     elif command == 'PUT':
                         key, value = map(int, line[4:].split())
                         result = self.table.put(key, value)
@@ -86,7 +87,8 @@ class Server(Thread):
                         self.outfile.write(
                             "PUT operations handled: {}{}".format(
                             num_puts, os.linesep))
-                        self.send_string_message(str(result), conn)
+                        # TODO: keep track of client's message IDs
+                        self.send_string_message(0, str(result), conn)
                     elif command == 'END':
                         num_done += 1
                         self.outfile.write("Got END #{}\n".format(num_done))
@@ -100,12 +102,28 @@ class Server(Thread):
                             done = True
 
     def receive_string_message(self, sender_connection):
+        """Receives and decodes a message from a client
+        
+        The first two bytes of a message always contain a message_id as
+        an unsigned short, which helps maintain chains of communication
+        """
+        # read from socket
         message = sender_connection.recv(1024)
+        # parse message components
+        message_id = int.from_bytes(message[:2], byteorder='big')
+        message = message[2:]
         if message:
             message = message.decode('ascii')
-        return message
+        return message_id, message
 
-    def send_string_message(self, message, recipient_socket):
-        """Converts ascii message to byte-string, then writes to socket"""
-        recipient_socket.sendall(bytes(message, 'ascii'))
+    def send_string_message(self, counter, message, recipient_socket):
+        """Converts ascii message to byte-string, then writes to socket
+        
+        `counter` should be an unsigned short corresponding to a unique
+        message chain ID
+        """
+        counter.to_bytes(2, byteorder='big')
+        encoded_m = bytes(message, 'ascii')
+        # send message prepended by 2-byte message ID
+        recipient_socket.sendall(counter + encoded_m)
 

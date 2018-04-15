@@ -7,13 +7,21 @@ from threading import Thread
 
 class Client(Thread):
     def __init__(self, client_settings, backlog_size, max_retries):
+        """client_settings is a list of 2-tuples: (server_hostname, port)"""
         # which node are we?
         self.hostname = socket.gethostname()
-        self.node_n = list(zip(*client_settings))[0].index(self.hostname)
-        # client settings is a list of 2-tuples: (server_hostname, port)
+        nodes_list = list(zip(*client_settings))
+        #self.node_n = list(zip(*client_settings))[0].index(self.hostname)
+        self.node_n = nodes_list[0].index(self.hostname)
+        # initialize message counter
+        self.num_nodes = len(nodes_list)
+        self.next_message_id = self.node_n
+
+        # general network info
         self.client_settings = client_settings
         self.max_retries = max_retries
         self.num_servers = len(client_settings)
+
         # open a file for debugging output
         outfilename = os.path.join(
                 os.getenv("OUTPUT_DIR"),
@@ -25,6 +33,7 @@ class Client(Thread):
         self.transactions = open(transaction_filename)
         with open(transaction_filename) as fh:
             self.transactions = [line for line in fh]
+
         # setup thread settings
         super(Client, self).__init__(
             group=None, target=None, name="{} (client)".format(
@@ -44,8 +53,8 @@ class Client(Thread):
                 result = s.connect_ex(server)
                 if result == 0:
                     connected.append(s)
-                            
                     self.send_string_message(
+                        self.message_id,
                         "{}'s client is alive\n".format(self.hostname),
                         s)
                     break
@@ -83,26 +92,41 @@ class Client(Thread):
                 result = self.receive_string_message(target_server)
                 self.outfile.write("PUT({}, {}): {}\n".format(
                     key, value, result))
+            # make sure messages have unique message ID
+            self.message_id += self.num_nodes
         self.outfile.write("Writing {} ENDs\n".format(len(connected)))
         self.outfile.flush()
         for conn in connected:
             conn.sendall(b'END\n')
 
     def receive_string_message(self, sender_connection):
+        """Receives and decodes a message from a client
+        
+        The first two bytes of a message always contain a message_id as
+        an unsigned short, which helps maintain chains of communication
+        """
         message = sender_connection.recv(1024)
+        # first two bytes contain message ID of original message
+        message_id = int.from_bytes(message[:2], byteorder='big')
+        # the rest of it is the actual message
+        message = message[2:]
         if message:
             message = message.decode('ascii')
-        return message
+        return message_id, message
 
-    def send_string_message(self, message, recipient_socket):
-        """Converts ascii message to byte-string, then writes to socket"""
-        print(message)
+    def send_string_message(self, counter, message, recipient_socket):
+        """Converts ascii message to byte-string, then writes to socket
+        
+        `counter` should be an unsigned short corresponding to a unique
+        message chain ID
+        """
+        counter.to_bytes(2, byteorder='big')
         encoded_m = bytes(message, 'ascii')
-        #recipient_socket.sendall(bytes(message, 'ascii'))
-        recipient_socket.sendall(encoded_m)
+        # send message prepended by 2-byte message ID
+        recipient_socket.sendall(counter + encoded_m)
 
     def close_all(self):
-        """Waits for all nodes to respond"""
+        """Waits for all nodes to respond (deprecated)"""
         connected = self.connected
         # everyone's connected, so quit
         self.outfile.write("Closing connections{}".format(os.linesep))
