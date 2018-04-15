@@ -1,11 +1,11 @@
-class Table(object):
+class Table:
     """A simple table that uses integer keys to access values. It isn't
     truly a hash table, since no hashing function is used to access values,
     and collisions are not allowed."""
 
     def __init__(self, num_buckets):
         """Initialize hash table with None everywhere"""
-        self.buckets = [None for i in xrange(num_buckets)]
+        self.buckets = [None for i in range(num_buckets)]
         self.num_buckets = num_buckets
 
     def __repr__(self):
