@@ -78,6 +78,11 @@ class Client(Thread):
             if request_type == 'GET':
                 result = self.receive_string_message(target_server)
                 self.outfile.write("GET({}): {}\n".format(key, result))
+            elif request_type != 'END':
+                value = args[1]
+                result = self.receive_string_message(target_server)
+                self.outfile.write("PUT({}, {}): {}\n".format(
+                    key, value, result))
         self.outfile.write("Writing {} ENDs\n".format(len(connected)))
         self.outfile.flush()
         for conn in connected:

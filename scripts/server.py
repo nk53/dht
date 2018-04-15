@@ -86,7 +86,7 @@ class Server(Thread):
                         self.outfile.write(
                             "PUT operations handled: {}{}".format(
                             num_puts, os.linesep))
-                        # TODO: inform client of result
+                        self.send_string_message(str(result), conn)
                     elif command == 'END':
                         num_done += 1
                         self.outfile.write("Got END #{}\n".format(num_done))
