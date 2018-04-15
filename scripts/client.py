@@ -75,7 +75,7 @@ class Client(Thread):
             # wait for response if we made a GET request
             if request_type == 'GET':
                 message = self.receive_string_message(target_server)
-                print("Message was {}".format(message))
+                self.outfile.write("Message was {}\n".format(message))
         self.outfile.write("Writing {} ENDs\n".format(len(connected)))
         self.outfile.flush()
         for conn in connected:
