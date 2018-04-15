@@ -68,6 +68,8 @@ class Client(Thread):
             self.outfile.write("Connection with {} successful{}".format(
                     server[0], os.linesep))
             self.outfile.flush() 
+        self.outfile.write("Starting message loop\n")
+        self.outfile.flush()
         self.connected = connected
         # process each transaction sequentially (slow)
         num_servers = self.num_servers
@@ -110,12 +112,13 @@ class Client(Thread):
         an unsigned short, which helps maintain chains of communication
         """
         message = sender_connection.recv(1024)
-        # first two bytes contain message ID of original message
-        message_id = int.from_bytes(message[:2], byteorder='big')
-        # the rest of it is the actual message
-        message = message[2:]
         if message:
-            message = message.decode('ascii')
+            # first two bytes contain message ID of original message
+            message_id = int.from_bytes(message[:2], byteorder='big')
+            # the rest of it is the actual message
+            message = message[2:].decode('ascii')
+        else:
+            message_id = None
         return message_id, message
 
     def send_string_message(self, counter, message, recipient_socket):
@@ -127,6 +130,8 @@ class Client(Thread):
         counter = counter.to_bytes(2, byteorder='big')
         encoded_m = bytes(message, 'ascii')
         # send message prepended by 2-byte message ID
+        self.outfile.write("Sending " + message)
+        self.outfile.flush()
         recipient_socket.sendall(counter + encoded_m)
 
     def close_all(self):

@@ -64,22 +64,22 @@ class Server(Thread):
         while not done:
             ready_list = select(connected, wlist, xlist)[0]
             for conn in ready_list:
-                message_id, message = self.receive_string_message(conn)
+                #message_id, message = self.receive_string_message(conn)
+                message = conn.recv(1024)
                 if not message:
                     break
                 # for debugging
                 self.outfile.write("Received message from {}{}".format(
                     conn.getpeername(), os.linesep))
-                self.outfile.write(message)
-                lines = message.split('\n')
-                self.outfile.write("Got {} lines\n".format(len(lines)))
-                for line in lines:
+                #lines = message.split('\n')
+                for message_id, line in self.parse_multiline(message):
+                    self.outfile.write(repr(line))
                     command = line[:3]
                     if command == 'GET':
                         key = int(line[4:])
                         result = self.table.get(key)
-                        # TODO: keep track of client's message IDs
-                        self.send_string_message(0, str(result), conn)
+                        self.send_string_message(message_id, str(result),
+                                conn)
                     elif command == 'PUT':
                         key, value = map(int, line[4:].split())
                         result = self.table.put(key, value)
@@ -87,8 +87,8 @@ class Server(Thread):
                         self.outfile.write(
                             "PUT operations handled: {}{}".format(
                             num_puts, os.linesep))
-                        # TODO: keep track of client's message IDs
-                        self.send_string_message(0, str(result), conn)
+                        self.send_string_message(message_id, str(result),
+                                conn)
                     elif command == 'END':
                         num_done += 1
                         self.outfile.write("Got END #{}\n".format(num_done))
@@ -100,6 +100,7 @@ class Server(Thread):
                                 self.hostname, os.linesep))
                             self.outfile.close()
                             done = True
+                            break
 
     def receive_string_message(self, sender_connection):
         """Receives and decodes a message from a client
@@ -109,11 +110,12 @@ class Server(Thread):
         """
         # read from socket
         message = sender_connection.recv(1024)
-        # parse message components
-        message_id = int.from_bytes(message[:2], byteorder='big')
-        message = message[2:]
         if message:
-            message = message.decode('ascii')
+            # parse message components
+            message_id = int.from_bytes(message[:2], byteorder='big')
+            message = message[2:].decode('ascii')
+        else:
+            message_id = None
         return message_id, message
 
     def send_string_message(self, counter, message, recipient_socket):
@@ -125,5 +127,18 @@ class Server(Thread):
         counter = counter.to_bytes(2, byteorder='big')
         encoded_m = bytes(message, 'ascii')
         # send message prepended by 2-byte message ID
+        self.outfile.write("Sending ({}) {}\n".format(counter, message))
         recipient_socket.sendall(counter + encoded_m)
 
+    def parse_multiline(self, data):
+        """Generator that yields the next line of a multi-line input
+        
+        Assumes each line is preceded by an unsigned short
+        """
+        while len(data) > 2:
+            message_id = int.from_bytes(data[:2], byteorder='big')
+            data = data[2:]
+            line_end = data.index(b'\n')
+            message = data[:line_end].decode('ascii')
+            yield message_id, message
+            data = data[line_end:]
