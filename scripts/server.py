@@ -74,7 +74,7 @@ class Server(Thread):
             ready_list = select(connected, wlist, xlist)[0]
             for conn in ready_list:
                 #message_id, message = self.receive_string_message(conn)
-                message = conn.recv(1024)
+                message = conn.recv(511) # multiple of 7 near 512
                 if not message:
                     break
                 # for debugging
@@ -118,6 +118,7 @@ class Server(Thread):
         conn.sendall(message_id + response_type + data)
 
     def show_hex(self, data):
+        """For debugging socket messages"""
         import textwrap
         data = textwrap.wrap(data.hex(), 2)
         print(' '.join(data))

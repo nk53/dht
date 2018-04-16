@@ -102,16 +102,26 @@ class Client(Thread):
             # wait for response if we made a GET request
             if request_type == 'GET':
                 self.get(target_server, self.next_message_id, key)
-                message_id, response_type, response_data = \
+                message_id, response_type, value = \
                         self.receive_response(target_server)
-                self.outfile.write("GET({}): {}\n".format(key, result))
-            elif request_type != 'END':
+                if response_type == self.EMPTY_BYTEC:
+                    value = None
+                debug_msg = "GET({}): {}".format(key, value)
+                print(debug_msg)
+                self.outfile.write(debug_msg + '\n')
+            elif request_type == 'PUT':
                 value = args[1]
                 self.put(target_server, self.next_message_id, key, value)
-                message_id, response_type, response_data = \
+                message_id, response_type, result = \
                         self.receive_response(target_server)
-                self.outfile.write("PUT({}, {}): {}{}".format(
-                    key, value, result, os.linesep))
+                if response_type == self.ACK_BYTEC:
+                    response_type = "OK"
+                else:
+                    response_type = "Denied"
+                debug_msg = "PUT({}, {}): {}".format(
+                    key, value, response_type)
+                print(debug_msg)
+                self.outfile.write(debug_msg + '\n')
             # make sure messages have unique message ID
             self.next_message_id += self.num_nodes
         self.outfile.write("Writing {} ENDs{}".format(len(connected),
@@ -125,14 +135,8 @@ class Client(Thread):
         message = conn.recv(5)
         message_id = int.from_bytes(message[:2], byteorder='big')
         response_type = message[2:3]
-        data = message[3:5]
+        data = int.from_bytes(message[3:5], byteorder='big')
         return message_id, response_type, data
-        #while len(message) > 0:
-        #    message_id = int.from_bytes(message[:2], byteorder='big')
-        #    response_type = message[2:3]
-        #    data = message[3:5]
-        #    yield message_id, response_type, data
-        #    message = message[5:]
 
     def request(self, conn, message_id, request_type,
             key=PAD_BYTEC*2, value=PAD_BYTEC*2):
@@ -184,6 +188,7 @@ class Client(Thread):
                 value.to_bytes(2, byteorder='big'))
 
     def show_hex(self, data):
+        """For debugging socket messages"""
         import textwrap
         data = textwrap.wrap(data.hex(), 2)
         print(' '.join(data))
