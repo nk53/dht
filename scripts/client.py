@@ -130,8 +130,6 @@ class Client(Thread):
         counter = counter.to_bytes(2, byteorder='big')
         encoded_m = bytes(message, 'ascii')
         # send message prepended by 2-byte message ID
-        self.outfile.write("Sending " + message)
-        self.outfile.flush()
         recipient_socket.sendall(counter + encoded_m)
 
     def close_all(self):

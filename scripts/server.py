@@ -73,7 +73,6 @@ class Server(Thread):
                     conn.getpeername(), os.linesep))
                 #lines = message.split('\n')
                 for message_id, line in self.parse_multiline(message):
-                    self.outfile.write(repr(line))
                     command = line[:3]
                     if command == 'GET':
                         key = int(line[4:])
@@ -127,7 +126,6 @@ class Server(Thread):
         counter = counter.to_bytes(2, byteorder='big')
         encoded_m = bytes(message, 'ascii')
         # send message prepended by 2-byte message ID
-        self.outfile.write("Sending ({}) {}\n".format(counter, message))
         recipient_socket.sendall(counter + encoded_m)
 
     def parse_multiline(self, data):
