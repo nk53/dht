@@ -141,4 +141,4 @@ class Server(Thread):
             line_end = data.index(b'\n')
             message = data[:line_end].decode('ascii')
             yield message_id, message
-            data = data[line_end:]
+            data = data[line_end+1:]
