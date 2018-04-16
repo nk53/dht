@@ -1,9 +1,10 @@
 #!/bin/bash
 
-hnames=( $(awk '{print $1}' $HOME/dht/config/ssh_ips) )
+# read the IPs that aren't for this machine
+hnames=( $(tail -n +2 $HOME/dht/config/ssh_ips | awk '{print $1}') )
 
 # read addresses/ip pairs from SSH configuration
 for hname in ${hnames[@]}; do
     echo "Pulling from $hname"
-    ssh -q -T $hname "cd dht; git pull"
+    ssh -q -T $hname "cd dht; git stash; git stash drop; git pull"
 done

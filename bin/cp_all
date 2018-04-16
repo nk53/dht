@@ -15,15 +15,19 @@ for dest in "$@"; do
         exit 2
     fi
 
-    # read addresses/ip pairs from SSH configuration
+    # read addresses/ip pairs from SSH configuration, except first
+    hostnum=0
     cat $HOME/.ssh/config | while read line; do
         if [ -n "$(echo -n $line | grep HOST)" ]; then
             hname=$(echo -n $line | sed "s/HOST //g")
         elif [ -n "$(echo -n $line | grep HostName)" ]; then
             addr=$(echo -n $line | sed "s/^[^0-9]*//g")
             # copy file to each host
-            echo "copying to $hname:$dest"
-            scp $dest $hname:$dest
+            if [ $hostnum -ne 0 ]; then
+                echo "copying to $hname:$dest"
+                scp $dest $hname:$dest
+            fi
+            let "hostnum++"
         fi
     done
 done
