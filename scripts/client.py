@@ -6,6 +6,21 @@ from time import sleep
 from threading import Thread
 
 class Client(Thread):
+    #
+    # Bytecode constants
+    #
+
+    # request types
+    PAD_BYTEC    = b'\x00' # to keep message length consistent
+    GET_BYTEC    = b'\x00'
+    PUT_BYTEC    = b'\x01'
+    END_BYTEC    = b'\x02'
+
+    # response types
+    EMPTY_BYTEC  = b'\x00' # when the response of a GET is null
+    ACK_BYTEC    = b'\x06' # OK
+    CANCEL_BYTEC = b'\x18' # Abort
+
     def __init__(self, client_settings, backlog_size, max_retries):
         """client_settings is a list of 2-tuples: (server_hostname, port)"""
         # which node are we?
@@ -53,10 +68,10 @@ class Client(Thread):
                 result = s.connect_ex(server)
                 if result == 0:
                     connected.append(s)
-                    self.send_string_message(
-                        self.next_message_id,
-                        "{}'s client is alive\n".format(self.hostname),
-                        s)
+                    #self.send_string_message(
+                    #    self.next_message_id,
+                    #    "{}'s client is alive\n".format(self.hostname),
+                    #    s)
                     break
                 else:
                     self.outfile.write(
@@ -84,53 +99,94 @@ class Client(Thread):
             # determine which server is responsible for handling this tx
             server_index = key % num_servers
             target_server = connected[server_index]
-            # send the command as a '\n'-terminated string
-            self.send_string_message(self.next_message_id,
-                    command, target_server)
             # wait for response if we made a GET request
             if request_type == 'GET':
-                message_id, result = self.receive_string_message(
-                        target_server)
+                self.get(target_server, self.next_message_id, key)
+                message_id, response_type, response_data = \
+                        self.receive_response(target_server)
                 self.outfile.write("GET({}): {}\n".format(key, result))
             elif request_type != 'END':
                 value = args[1]
-                message_id, result = self.receive_string_message(
-                        target_server)
-                self.outfile.write("PUT({}, {}): {}\n".format(
-                    key, value, result))
+                self.put(target_server, self.next_message_id, key, value)
+                message_id, response_type, response_data = \
+                        self.receive_response(target_server)
+                self.outfile.write("PUT({}, {}): {}{}".format(
+                    key, value, result, os.linesep))
             # make sure messages have unique message ID
             self.next_message_id += self.num_nodes
-        self.outfile.write("Writing {} ENDs\n".format(len(connected)))
+        self.outfile.write("Writing {} ENDs{}".format(len(connected),
+            os.linesep))
         self.outfile.flush()
         for conn in connected:
-            self.send_string_message(self.next_message_id, "END\n", conn)
+            self.request(conn, 0, self.END_BYTEC)
 
-    def receive_string_message(self, sender_connection):
-        """Receives and decodes a message from a client
-        
-        The first two bytes of a message always contain a message_id as
-        an unsigned short, which helps maintain chains of communication
-        """
-        message = sender_connection.recv(1024)
-        if message:
-            # first two bytes contain message ID of original message
-            message_id = int.from_bytes(message[:2], byteorder='big')
-            # the rest of it is the actual message
-            message = message[2:].decode('ascii')
-        else:
-            message_id = None
-        return message_id, message
+    def receive_response(self, conn):
+        """Reads and returns five bytes at a time"""
+        message = conn.recv(5)
+        message_id = int.from_bytes(message[:2], byteorder='big')
+        response_type = message[2:3]
+        data = message[3:5]
+        return message_id, response_type, data
+        #while len(message) > 0:
+        #    message_id = int.from_bytes(message[:2], byteorder='big')
+        #    response_type = message[2:3]
+        #    data = message[3:5]
+        #    yield message_id, response_type, data
+        #    message = message[5:]
 
-    def send_string_message(self, counter, message, recipient_socket):
-        """Converts ascii message to byte-string, then writes to socket
+    def request(self, conn, message_id, request_type,
+            key=PAD_BYTEC*2, value=PAD_BYTEC*2):
+        """Sends a bytecode request using the given connection
         
-        `counter` should be an unsigned short corresponding to a unique
-        message chain ID
+        Parameters
+        ----------
+            conn            socket  connection for sending
+            message_id      int     message chain ID
+            request_type    bytes   whether to PUT/GET/END
+            key             bytes   key to GET/PUT (leave blank for END)
+            value           bytes   value to PUT (PUT only)
         """
-        counter = counter.to_bytes(2, byteorder='big')
-        encoded_m = bytes(message, 'ascii')
-        # send message prepended by 2-byte message ID
-        recipient_socket.sendall(counter + encoded_m)
+        # convert ints to ushort bytes
+        message_id = message_id.to_bytes(2, byteorder='big')
+        # send concatenated bytes
+        conn.sendall(message_id + request_type + key + value)
+
+    def get(self, conn, message_id, key):
+        """Sends a GET request
+
+        Parameters
+        ----------
+            conn        socket  connection for sending
+            message_id  int     mesage chain ID
+            key         int     key to GET
+        """
+        self.request(
+                conn,
+                message_id,
+                self.GET_BYTEC,
+                key.to_bytes(2, byteorder='big'))
+
+    def put(self, conn, message_id, key, value):
+        """Sends a PUT request
+
+        Parameters
+        ----------
+            conn        socket  connection for sending
+            message_id  int     mesage chain ID
+            key         int     key to PUT
+            value       int     value to PUT
+        """
+        self.request(
+                conn,
+                message_id,
+                self.PUT_BYTEC,
+                key.to_bytes(2, byteorder='big'),
+                value.to_bytes(2, byteorder='big'))
+
+    def show_hex(self, data):
+        import textwrap
+        data = textwrap.wrap(data.hex(), 2)
+        print(' '.join(data))
 
     def close_all(self):
         """Waits for all nodes to respond (deprecated)"""

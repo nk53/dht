@@ -6,6 +6,15 @@ from threading import Thread
 from hash_single_thread import Table
 
 class Server(Thread):
+    # request types
+    GET_BYTEC    = b'\x00'
+    PUT_BYTEC    = b'\x01'
+    END_BYTEC    = b'\x02'
+    
+    # response types
+    EMPTY_BYTEC  = b'\x00'
+    ACK_BYTEC    = b'\x06'
+    CANCEL_BYTEC = b'\x18'
     def __init__(self, clients, server_settings, backlog_size, max_retries):
         # setup connection info
         self.hostname = socket.gethostname()
@@ -69,28 +78,27 @@ class Server(Thread):
                 if not message:
                     break
                 # for debugging
-                self.outfile.write("Received message from {}{}".format(
-                    conn.getpeername(), os.linesep))
+                #self.outfile.write("Received message from {}{}".format(
+                #    conn.getpeername(), os.linesep))
                 #lines = message.split('\n')
-                for message_id, line in self.parse_multiline(message):
-                    command = line[:3]
-                    if command == 'GET':
-                        key = int(line[4:])
+                for message_id, command, key, value in \
+                        self.parse_multiline(message):
+                    if command == self.GET_BYTEC:
                         result = self.table.get(key)
-                        self.send_string_message(message_id, str(result),
-                                conn)
-                    elif command == 'PUT':
-                        key, value = map(int, line[4:].split())
+                        if result != None:
+                            self.respond(conn, message_id, self.ACK_BYTEC,
+                                    result)
+                        else:
+                            self.respond(conn, message_id, self.EMPTY_BYTEC,
+                                    0)
+                    elif command == self.PUT_BYTEC:
                         result = self.table.put(key, value)
-                        num_puts += 1
-                        self.outfile.write(
-                            "PUT operations handled: {}{}".format(
-                            num_puts, os.linesep))
-                        self.send_string_message(message_id, str(result),
-                                conn)
-                    elif command == 'END':
+                        self.respond(conn, message_id, self.ACK_BYTEC,
+                                result)
+                    elif command == self.END_BYTEC:
                         num_done += 1
-                        self.outfile.write("Got END #{}\n".format(num_done))
+                        self.outfile.write("Got END #{}{}".format(
+                            num_done, os.linesep))
                         self.outfile.flush()
                         if num_done == self.num_clients:
                             # stop server process
@@ -101,42 +109,26 @@ class Server(Thread):
                             done = True
                             break
 
-    def receive_string_message(self, sender_connection):
-        """Receives and decodes a message from a client
-        
-        The first two bytes of a message always contain a message_id as
-        an unsigned short, which helps maintain chains of communication
-        """
-        # read from socket
-        message = sender_connection.recv(1024)
-        if message:
-            # parse message components
-            message_id = int.from_bytes(message[:2], byteorder='big')
-            message = message[2:].decode('ascii')
-        else:
-            message_id = None
-        return message_id, message
+    def respond(self, conn, message_id, response_type, data=b''):
+        """Responds with bytecode for yes/no + any additional data
+        that was requested by the client (if any)"""
+        message_id = message_id.to_bytes(2, byteorder='big')
+        if data != b'':
+            data = data.to_bytes(2, byteorder='big')
+        conn.sendall(message_id + response_type + data)
 
-    def send_string_message(self, counter, message, recipient_socket):
-        """Converts ascii message to byte-string, then writes to socket
-        
-        `counter` should be an unsigned short corresponding to a unique
-        message chain ID
-        """
-        counter = counter.to_bytes(2, byteorder='big')
-        encoded_m = bytes(message, 'ascii')
-        # send message prepended by 2-byte message ID
-        recipient_socket.sendall(counter + encoded_m)
+    def show_hex(self, data):
+        import textwrap
+        data = textwrap.wrap(data.hex(), 2)
+        print(' '.join(data))
 
     def parse_multiline(self, data):
-        """Generator that yields the next line of a multi-line input
-        
-        Assumes each line is preceded by an unsigned short
-        """
-        while len(data) > 2:
-            message_id = int.from_bytes(data[:2], byteorder='big')
-            data = data[2:]
-            line_end = data.index(b'\n')
-            message = data[:line_end].decode('ascii')
-            yield message_id, message
-            data = data[line_end+1:]
+        """Returns the next parsed line of multiline input"""
+        assert not len(data) % 7, "Got bad message length"
+        while len(data):
+            message_id   = int.from_bytes(data[:2], byteorder='big')
+            request_type = data[2:3]
+            key          = int.from_bytes(data[3:5], byteorder='big')
+            value        = int.from_bytes(data[5:7], byteorder='big')
+            yield message_id, request_type, key, value
+            data = data[7:]
