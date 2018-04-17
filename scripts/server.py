@@ -71,6 +71,7 @@ class Server(Thread):
         num_done = 0
         done = False
         while not done:
+            # block until we get at least one message
             ready_list = select(connected, wlist, xlist)[0]
             for conn in ready_list:
                 #message_id, message = self.receive_string_message(conn)

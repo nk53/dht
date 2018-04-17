@@ -138,7 +138,8 @@ class Client(Thread):
         """Check established connections to see if any servers responded """
         wlist = tuple()
         xlist = tuple()
-        ready_list = select(self.connected, wlist, xlist)[0]
+        # poll connections; don't block
+        ready_list = select(self.connected, wlist, xlist, 0)[0]
         for conn in ready_list:
             message_id, response_type, result = \
                     self.receive_response(conn)
