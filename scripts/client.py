@@ -99,8 +99,6 @@ class Client(Thread):
         # list of messages sent which have not yet been given a response
         self.pending = dict() 
         for command in self.transactions:
-            self.outfile.write("Writing message {}\n".format(
-                self.next_message_id))
             # get request type
             request_type = command[:3]
             # get first parameter (key) from the command
