@@ -21,6 +21,9 @@ class Client(Thread):
     ACK_BYTEC    = b'\x06' # OK
     CANCEL_BYTEC = b'\x18' # Abort
 
+    # maximum size of a short
+    max_counter = 2 ** 16
+
     def __init__(self, client_settings, backlog_size, max_retries):
         """client_settings is a list of 2-tuples: (server_hostname, port)"""
         # which node are we?
@@ -29,7 +32,7 @@ class Client(Thread):
         #self.node_n = list(zip(*client_settings))[0].index(self.hostname)
         self.node_n = nodes_list[0].index(self.hostname)
         # initialize message counter
-        self.num_nodes = len(nodes_list)
+        self.num_nodes = len(nodes_list[0])
         self.next_message_id = self.node_n
 
         # general network info
@@ -89,13 +92,15 @@ class Client(Thread):
                 self.start_time))
         self.outfile.flush()
         self.connected = connected
-        # process each transaction sequentially (slow)
 
+        # process each transaction sequentially (slow)
         num_servers = self.num_servers
         self.next_message_id += self.num_nodes
         # list of messages sent which have not yet been given a response
         self.pending = dict() 
         for command in self.transactions:
+            self.outfile.write("Writing message {}\n".format(
+                self.next_message_id))
             # get request type
             request_type = command[:3]
             # get first parameter (key) from the command
@@ -114,6 +119,8 @@ class Client(Thread):
                         value)
             # make sure messages have unique message ID
             self.next_message_id += self.num_nodes
+            # make sure we won't overflow
+            self.next_message_id %= self.max_counter
             # have we received any responses?
             self.check_responses()
 
@@ -160,9 +167,13 @@ class Client(Thread):
                 # is the response for a PUT?
                 elif message_type == self.PUT_BYTEC:
                     if response_type == self.ACK_BYTEC:
+                        # TODO: did every server respond ACK?
                         result = "OK"
+                        self.commit(conn, message_id)
                     else:
+                        # TODO: put in a retry list
                         result = "Denied"
+                        self.abort(conn, message_id)
                     debug_msg = "PUT({}, {}): {}".format(
                         message_log["key"], message_log["value"],
                         result)
@@ -199,6 +210,22 @@ class Client(Thread):
         # send concatenated bytes
         conn.sendall(message_id + request_type + key + value)
 
+    def abort(self, conn, message_id):
+        """Tells the server to abort a PUT"""
+        req_type = self.CANCEL_BYTEC
+        self.request(
+                conn,
+                message_id,
+                req_type)
+
+    def commit(self, conn, message_id):
+        """Tells the server to commit a PUT"""
+        req_type = self.ACK_BYTEC
+        self.request(
+                conn,
+                message_id,
+                req_type)
+
     def get(self, conn, message_id, key):
         """Sends a GET request
 
@@ -219,6 +246,7 @@ class Client(Thread):
                 'type': req_type,
                 'key': key
         } 
+
     def put(self, conn, message_id, key, value):
         """Sends a PUT request
 

@@ -70,6 +70,7 @@ class Server(Thread):
         num_puts = 0
         num_done = 0
         done = False
+        self.pending = dict()
         while not done:
             # block until we get at least one message
             ready_list = select(connected, wlist, xlist)[0]
@@ -93,9 +94,19 @@ class Server(Thread):
                             self.respond(conn, message_id, self.EMPTY_BYTEC,
                                     0)
                     elif command == self.PUT_BYTEC:
-                        result = self.table.put(key, value)
-                        self.respond(conn, message_id, self.ACK_BYTEC,
-                                result)
+                        # is client confirming a previous PUT?
+                        if message_id in self.pending:
+                            # TODO: release lock
+                            result = self.table.put(key, value)
+                            del self.pending[message_id]
+                        else:
+                            # TODO: obtain lock
+                            self.pending[message_id] = {
+                                    'key': key,
+                                    'value': value
+                            }
+                            self.respond(conn, message_id, self.ACK_BYTEC,
+                                    0)
                     elif command == self.END_BYTEC:
                         num_done += 1
                         self.outfile.write("Got END #{}{}".format(
