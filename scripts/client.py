@@ -2,7 +2,7 @@ import os
 import socket
 from select import select
 from sys import stdout
-from time import sleep
+from time import time, sleep
 from threading import Thread
 
 class Client(Thread):
@@ -83,12 +83,18 @@ class Client(Thread):
             self.outfile.write("Connection with {} successful{}".format(
                     server[0], os.linesep))
             self.outfile.flush() 
-        self.outfile.write("Starting message loop\n")
+        # start a timer
+        self.start_time = time()
+        self.outfile.write("Starting message loop at {}\n".format(
+                self.start_time))
         self.outfile.flush()
         self.connected = connected
         # process each transaction sequentially (slow)
+
         num_servers = self.num_servers
         self.next_message_id += self.num_nodes
+        # list of messages sent which have not yet been given a response
+        self.pending = dict() 
         for command in self.transactions:
             # get request type
             request_type = command[:3]
@@ -99,40 +105,77 @@ class Client(Thread):
             # determine which server is responsible for handling this tx
             server_index = key % num_servers
             target_server = connected[server_index]
-            # wait for response if we made a GET request
+            # make the request
             if request_type == 'GET':
                 self.get(target_server, self.next_message_id, key)
-                message_id, response_type, value = \
-                        self.receive_response(target_server)
-                if response_type == self.EMPTY_BYTEC:
-                    value = None
-                debug_msg = "GET({}): {}".format(key, value)
-                print(debug_msg)
-                self.outfile.write(debug_msg + '\n')
             elif request_type == 'PUT':
                 value = args[1]
-                self.put(target_server, self.next_message_id, key, value)
-                message_id, response_type, result = \
-                        self.receive_response(target_server)
-                if response_type == self.ACK_BYTEC:
-                    response_type = "OK"
-                else:
-                    response_type = "Denied"
-                debug_msg = "PUT({}, {}): {}".format(
-                    key, value, response_type)
-                print(debug_msg)
-                self.outfile.write(debug_msg + '\n')
+                self.put(target_server, self.next_message_id, key,
+                        value)
             # make sure messages have unique message ID
             self.next_message_id += self.num_nodes
+            # have we received any responses?
+            self.check_responses()
+
+        # done sending messages, and now we wait for the final responses
+        while self.pending:
+            self.check_responses()
+
+        # record when we got the last response
+        self.end_time = time()
+        run_time = self.end_time - self.start_time
+        debug_msg = "Total messaging runtime: {} s".format(run_time)
+        print(debug_msg)
+
+        self.outfile.write(debug_msg + os.linesep)
         self.outfile.write("Writing {} ENDs{}".format(len(connected),
             os.linesep))
         self.outfile.flush()
         for conn in connected:
             self.request(conn, 0, self.END_BYTEC)
 
+    def check_responses(self):
+        """Check established connections to see if any servers responded """
+        wlist = tuple()
+        xlist = tuple()
+        ready_list = select(self.connected, wlist, xlist)[0]
+        for conn in ready_list:
+            message_id, response_type, result = \
+                    self.receive_response(conn)
+            if message_id == None:
+                break
+            if message_id in self.pending:
+                # TODO: handle response
+                message_log = self.pending[message_id]
+                message_type = message_log["type"]
+                # is the response for a GET?
+                if message_type == self.GET_BYTEC:
+                    if response_type == self.EMPTY_BYTEC:
+                        result = None
+                    debug_msg = "GET({}): {}".format(
+                        message_log["key"], result)
+                    print(debug_msg)
+                    self.outfile.write(debug_msg + '\n')
+                # is the response for a PUT?
+                elif message_type == self.PUT_BYTEC:
+                    if response_type == self.ACK_BYTEC:
+                        result = "OK"
+                    else:
+                        result = "Denied"
+                    debug_msg = "PUT({}, {}): {}".format(
+                        message_log["key"], message_log["value"],
+                        result)
+                    print(debug_msg)
+                    self.outfile.write(debug_msg + '\n')
+                # message has been handled, remove it from pending
+                del self.pending[message_id]
+
+
     def receive_response(self, conn):
         """Reads and returns five bytes at a time"""
         message = conn.recv(5)
+        if not message:
+            return None, None, None
         message_id = int.from_bytes(message[:2], byteorder='big')
         response_type = message[2:3]
         data = int.from_bytes(message[3:5], byteorder='big')
@@ -164,12 +207,17 @@ class Client(Thread):
             message_id  int     mesage chain ID
             key         int     key to GET
         """
+        req_type = self.GET_BYTEC
         self.request(
                 conn,
                 message_id,
-                self.GET_BYTEC,
+                req_type,
                 key.to_bytes(2, byteorder='big'))
 
+        self.pending[message_id] = {
+                'type': req_type,
+                'key': key
+        } 
     def put(self, conn, message_id, key, value):
         """Sends a PUT request
 
@@ -180,12 +228,19 @@ class Client(Thread):
             key         int     key to PUT
             value       int     value to PUT
         """
+        req_type = self.PUT_BYTEC
         self.request(
                 conn,
                 message_id,
-                self.PUT_BYTEC,
+                req_type,
                 key.to_bytes(2, byteorder='big'),
                 value.to_bytes(2, byteorder='big'))
+
+        self.pending[message_id] = {
+                'type': req_type,
+                'key': key,
+                'value': value
+        } 
 
     def show_hex(self, data):
         """For debugging socket messages"""
