@@ -54,10 +54,10 @@ client.start()
 print("Client thread started")
 stdout.flush()
 
-client.join()
-print("Client stopped")
-stdout.flush()
-
 server.join()
 print("Server stopped")
+stdout.flush()
+
+client.join()
+print("Client stopped")
 stdout.flush()
