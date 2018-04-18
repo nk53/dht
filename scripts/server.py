@@ -96,17 +96,20 @@ class Server(Thread):
                     elif command == self.PUT_BYTEC:
                         # is client confirming a previous PUT?
                         if message_id in self.pending:
-                            # TODO: release lock
                             result = self.table.put(key, value)
                             del self.pending[message_id]
+                            self.table.release(key)
                         else:
-                            # TODO: obtain lock
-                            self.pending[message_id] = {
-                                    'key': key,
-                                    'value': value
-                            }
-                            self.respond(conn, message_id, self.ACK_BYTEC,
-                                    0)
+                            if self.table.acquire(key):
+                                self.pending[message_id] = {
+                                        'key': key,
+                                        'value': value
+                                }
+                                self.respond(conn, message_id,
+                                        self.ACK_BYTEC, 0)
+                            else:
+                                self.respond(conn, message_id,
+                                        self.CANCEL_BYTEC, 0)
                     elif command == self.END_BYTEC:
                         num_done += 1
                         self.outfile.write("Got END #{}{}".format(
@@ -129,11 +132,14 @@ class Server(Thread):
             data = data.to_bytes(2, byteorder='big')
         conn.sendall(message_id + response_type + data)
 
-    def show_hex(self, data):
+    def show_hex(self, data, use_outfile=False):
         """For debugging socket messages"""
         import textwrap
         data = textwrap.wrap(data.hex(), 2)
-        print(' '.join(data))
+        if use_outfile:
+            self.outfile.write(' '.join(data) + '\n')
+        else:
+            print(' '.join(data))
 
     def parse_multiline(self, data):
         """Returns the next parsed line of multiline input"""
