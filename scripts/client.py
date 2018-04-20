@@ -139,6 +139,8 @@ class Client(Thread):
         for conn in connected:
             self.request(conn, 0, self.END_BYTEC)
 
+        sleep(100)
+
     def check_responses(self):
         """Check established connections to see if any servers responded """
         wlist = tuple()
