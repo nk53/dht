@@ -34,4 +34,10 @@ fi
 sed --in-place=".bak" "s/\(port[^0-9]*\)[0-9]*/\1$port_n/" $SETTINGS
 
 # do single-node test
-python node.py
+python node.py &
+
+while [ $(./ends.sh 1 | wc -l) -lt 1 ] ; do
+    sleep 1
+done
+
+echo Done
