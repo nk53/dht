@@ -35,7 +35,7 @@ hnames=($(awk '{print $1}' $SSH_ADDRESSES))
 
 # log into each host, then start the node
 for hname in ${hnames[@]}; do
-    echo "Starting $hname"
+    #echo "Starting $hname"
 # begin SSH template
 ssh -T -q $hname << TEMPLATE &
 cd \$HOME/environments
@@ -43,9 +43,13 @@ source dht/bin/activate
 cd $SCRIPT_DIR
 rm $OUTPUT_DIR/*
 source setup_env.sh
-echo "$NODE_SCRIPT 2> $OUTPUT_DIR/\$(hostname)_node.err > $OUTPUT_DIR/\$(hostname)_node.out"
+#echo "$NODE_SCRIPT 2> $OUTPUT_DIR/\$(hostname)_node.err > $OUTPUT_DIR/\$(hostname)_node.out"
 python $NODE_SCRIPT 2> $OUTPUT_DIR/\$(hostname)_node.err > $OUTPUT_DIR/\$(hostname)_node.out &
 echo "\$! : \$(hostname)" >> $PIDS
 TEMPLATE
 # end SSH template
 done
+
+./monitor.sh 3
+
+./stop_all.sh > /dev/null

@@ -1,0 +1,6 @@
+#!/bin/bash
+
+source setup_env.sh
+
+cd $OUTPUT_DIR
+grep runtime *client.out | sed "s/Total.*untime:/\t/"

@@ -124,7 +124,8 @@ class Server(Thread):
                             done = True
                             break
 
-    def respond(self, conn, message_id, response_type, data=b''):
+    @staticmethod
+    def respond(conn, message_id, response_type, data=b''):
         """Responds with bytecode for yes/no + any additional data
         that was requested by the client (if any)"""
         message_id = message_id.to_bytes(2, byteorder='big')
@@ -141,7 +142,8 @@ class Server(Thread):
         else:
             print(' '.join(data))
 
-    def parse_multiline(self, data):
+    @staticmethod
+    def parse_multiline(data):
         """Returns the next parsed line of multiline input"""
         assert not len(data) % 7, "Got bad message length"
         while len(data):
