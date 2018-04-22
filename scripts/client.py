@@ -3,9 +3,9 @@ import socket
 from select import select
 from sys import stdout
 from time import time, sleep
-from threading import Thread
+from multiprocessing import Process
 
-class Client(Thread):
+class Client(Process):
     #
     # Bytecode constants
     #

@@ -1,7 +1,7 @@
 # Python STL
 import socket
 from sys import stdout
-from threading import Lock
+from multiprocessing import Pool
 # custom
 from client import Client
 from server import Server
@@ -25,6 +25,12 @@ MAX_RETRIES = int(options['max_retries'])
 #
 # Setup Server/Client threads
 #
+
+# how many threads should we initialize?
+SERVER_THREADS = int(options(['server_threads']))
+COORDINATOR_THREADS = int(options['coordinator_threads'])
+
+pool = Pool(SERVER_THREADS + 1)
 
 # settings for server end of sockets
 SERVER_HOST = ''

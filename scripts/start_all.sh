@@ -34,6 +34,7 @@ fi
 hnames=($(awk '{print $1}' $SSH_ADDRESSES))
 
 # log into each host, then start the node
+rm $OUTPUT_DIR/*
 for hname in ${hnames[@]}; do
     #echo "Starting $hname"
 # begin SSH template

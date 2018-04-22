@@ -2,10 +2,46 @@ import os
 import socket
 from select import select
 from sys import stdout
-from threading import Thread
+from multiprocessing import Array as MPArray, Process
 from hash_single_thread import Table
+from ctypes import c_int
 
-class Server(Thread):
+class Worker(Process):
+    # request types
+    GET_BYTEC    = b'\x00'
+    PUT_BYTEC    = b'\x01'
+    END_BYTEC    = b'\x02'
+    
+    # response types
+    EMPTY_BYTEC  = b'\x00'
+    ACK_BYTEC    = b'\x06'
+    CANCEL_BYTEC = b'\x18'
+    """Uses blocking FIFO queues to read and write to a shared memory
+    table"""
+    def __init__(self, table, request_queue, response_queue):
+        self.table = table
+        self.request_queue = request_queue
+        self.response_queue = response_queue
+
+    def run(self):
+        # get the next request as a byte-string
+        req_bytes = self.request_queue.get()
+        # parse the bytes
+        message_id   = int.from_bytes(req_bytes[:2], byteorder='big')
+        request_type = req_bytes[2:3]
+        key          = int.from_bytes(req_bytes[3:5], byteorder='big')
+        value        = int.from_bytes(req_bytes[5:7], byteorder='big')
+        if request_type == self.GET_BYTEC:
+            # read value from table, and convert it to ushort bytestring
+            value = self.table[key].to_bytes(2, byteorder='big')
+            response = message_id
+        elif request_type == self.PUT_BYTEC:
+            # TODO PUT
+        elif request_type == self.END_BYTEC:
+            # TODO END, probably just ignore
+        
+
+class Server(Process):
     # request types
     GET_BYTEC    = b'\x00'
     PUT_BYTEC    = b'\x01'
