@@ -31,7 +31,7 @@ else
     let "port_n = port_n - 99"
 fi
 
-sed --in-place=".bak" "s/\(port[^0-9]*\)[0-9]*/\1$port_n/" $SETTINGS
+sed -i ".bak" "s/\(port[^0-9]*\)[0-9]*/\1$port_n/" $SETTINGS
 
 # do single-node test
 python node.py &
