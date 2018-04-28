@@ -27,7 +27,7 @@ MAX_RETRIES = int(options['max_retries'])
 #
 
 # how many threads should we initialize?
-SERVER_THREADS = int(options(['server_threads']))
+SERVER_THREADS = int(options['server_threads'])
 COORDINATOR_THREADS = int(options['coordinator_threads'])
 
 pool = Pool(SERVER_THREADS + 1)

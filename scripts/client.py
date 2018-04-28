@@ -95,7 +95,6 @@ class Client(Process):
 
         # process each transaction sequentially (slow)
         num_servers = self.num_servers
-        self.next_message_id += self.num_nodes
         # list of messages sent which have not yet been given a response
         self.pending = dict() 
         for command in self.transactions:
@@ -130,7 +129,6 @@ class Client(Process):
         self.end_time = time()
         run_time = self.end_time - self.start_time
         debug_msg = "Total messaging runtime: {} s".format(run_time)
-        print(debug_msg)
 
         self.outfile.write(debug_msg + os.linesep)
         self.outfile.write("Writing {} ENDs{}".format(len(connected),
@@ -148,7 +146,7 @@ class Client(Process):
         # poll connections; don't block
         ready_list = select(self.connected, wlist, xlist, 0)[0]
         for conn in ready_list:
-            message_id, response_type, result = \
+            message_id, response_type, data = \
                     self.receive_response(conn)
             if message_id == None:
                 break
@@ -160,6 +158,8 @@ class Client(Process):
                 if message_type == self.GET_BYTEC:
                     if response_type == self.EMPTY_BYTEC:
                         result = None
+                    else:
+                        result = int.from_bytes(data, byteorder='big')
                     debug_msg = "GET({}): {}".format(
                         message_log["key"], result)
                     print(debug_msg)
@@ -169,11 +169,13 @@ class Client(Process):
                     if response_type == self.ACK_BYTEC:
                         # TODO: did every server respond ACK?
                         result = "OK"
-                        self.commit(conn, message_id)
-                    else:
+                        self.commit(conn, message_id, data)
+                    elif response_type == self.CANCEL_BYTEC:
                         # TODO: put in a retry list
                         result = "Denied"
-                        self.abort(conn, message_id)
+                        self.abort(conn, message_id, data)
+                    else:
+                        result = "Got bad response message"
                     debug_msg = "PUT({}, {}): {}".format(
                         message_log["key"], message_log["value"],
                         result)
@@ -188,9 +190,10 @@ class Client(Process):
         message = conn.recv(5)
         if not message:
             return None, None, None
+        #self.show_hex(message, prefix="Received: ")
         message_id = int.from_bytes(message[:2], byteorder='big')
         response_type = message[2:3]
-        data = int.from_bytes(message[3:5], byteorder='big')
+        data = message[3:5]
         return message_id, response_type, data
 
     def request(self, conn, message_id, request_type,
@@ -208,23 +211,19 @@ class Client(Process):
         # convert ints to ushort bytes
         message_id = message_id.to_bytes(2, byteorder='big')
         # send concatenated bytes
+        #self.show_hex(message_id + request_type + key + value,
+        #        prefix="Sending: ")
         conn.sendall(message_id + request_type + key + value)
 
-    def abort(self, conn, message_id):
+    def abort(self, conn, message_id, worker_id):
         """Tells the server to abort a PUT"""
         req_type = self.CANCEL_BYTEC
-        self.request(
-                conn,
-                message_id,
-                req_type)
+        self.request(conn, message_id, req_type, worker_id)
 
-    def commit(self, conn, message_id):
+    def commit(self, conn, message_id, worker_id):
         """Tells the server to commit a PUT"""
         req_type = self.ACK_BYTEC
-        self.request(
-                conn,
-                message_id,
-                req_type)
+        self.request(conn, message_id, req_type, worker_id)
 
     def get(self, conn, message_id, key):
         """Sends a GET request
@@ -236,10 +235,7 @@ class Client(Process):
             key         int     key to GET
         """
         req_type = self.GET_BYTEC
-        self.request(
-                conn,
-                message_id,
-                req_type,
+        self.request(conn, message_id, req_type,
                 key.to_bytes(2, byteorder='big'))
 
         self.pending[message_id] = {
@@ -258,10 +254,7 @@ class Client(Process):
             value       int     value to PUT
         """
         req_type = self.PUT_BYTEC
-        self.request(
-                conn,
-                message_id,
-                req_type,
+        self.request(conn, message_id, req_type,
                 key.to_bytes(2, byteorder='big'),
                 value.to_bytes(2, byteorder='big'))
 
@@ -271,11 +264,11 @@ class Client(Process):
                 'value': value
         } 
 
-    def show_hex(self, data):
+    def show_hex(self, data, prefix='', suffix=''):
         """For debugging socket messages"""
         import textwrap
         data = textwrap.wrap(data.hex(), 2)
-        print(' '.join(data))
+        print(prefix + ' '.join(data) + suffix)
 
     def close_all(self):
         """Waits for all nodes to respond (deprecated)"""
