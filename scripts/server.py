@@ -63,6 +63,7 @@ class Worker(Process):
                     # read value from table, convert it to ushort bytestring
                     value = self.table[key].to_bytes(2, byteorder='big')
                     self.respond(conn, message_id, self.ACK_BYTEC, value)
+                    lock.release()
                 else:
                     # let client know the location is locked
                     self.respond(conn, message_id, self.EMPTY_BYTEC,
@@ -72,6 +73,7 @@ class Worker(Process):
                 lock = self.table_locks[key % self.table_size]
                 # is the lock busy?
                 if lock.acquire(block=False):
+                    #print("locking thread", self.worker_id)
                     # we own the lock
                     self.respond(conn, message_id, self.ACK_BYTEC,
                             self.WORKER_ID_BYTEC)
@@ -86,8 +88,10 @@ class Worker(Process):
                     if action == self.ACK_BYTEC:
                         self.table[key] = value
                     # whether commit abort, we still need to unlock
+                    #print("unlocking thread", self.worker_id)
                     lock.release()
                 else:
+                    #print("already locked")
                     self.respond(conn, message_id, self.CANCEL_BYTEC,
                             self.EMPTY_BYTEC * 2)
             elif request_type == self.END_BYTEC:
@@ -183,7 +187,7 @@ class Server(Process):
         self.outfile.flush()
         # start 8 worker threads
         pipes = []
-        for worker_id in range(10):
+        for worker_id in range(2):
             parent_conn, child_conn = Pipe()
             pipes.append(parent_conn)
             Worker(worker_id, child_conn, s, connected, self.table,
@@ -201,9 +205,9 @@ class Server(Process):
                 # read the message
                 message = conn.recv(511) # multiple of 7 near 512
                 if not message:
+                    print("Why are we here?")
                     # we really shouldn't ever get here, but just in case
                     break
-
                 # pass the message to a worker
                 for line in self.split_multiline(message):
                     # is this is a commit/abort message?
