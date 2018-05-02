@@ -121,10 +121,16 @@ class Server(Process):
     CANCEL_BYTEC = b'\x18'
 
     # 2-phase-commit response types
-    TWO_PC_BYTEC = [
+    TWO_PC_BYTEC = (
         ACK_BYTEC,
         CANCEL_BYTEC
-    ]
+    )
+
+    # regular (initial) requests
+    GET_OR_PUT_BYTEC = (
+        GET_BYTEC,
+        PUT_BYTEC
+    )
     def __init__(self, clients, server_settings, backlog_size, max_retries):
         # setup connection info
         self.hostname = socket.gethostname()
@@ -142,7 +148,7 @@ class Server(Process):
         # setup table
         #self.table = Table(100)
         # results in an array of type multiprocessing.sharedctypes.Array
-        num_keys = 100
+        num_keys = 1000
         self.table = RawArray(c_int, num_keys)
         self.locks = [Lock() for i in range(num_keys)]
         # multi-producer/multi-consumer queues
@@ -187,7 +193,7 @@ class Server(Process):
         self.outfile.flush()
         # start 8 worker threads
         pipes = []
-        for worker_id in range(2):
+        for worker_id in range(24):
             parent_conn, child_conn = Pipe()
             pipes.append(parent_conn)
             Worker(worker_id, child_conn, s, connected, self.table,
@@ -205,7 +211,6 @@ class Server(Process):
                 # read the message
                 message = conn.recv(511) # multiple of 7 near 512
                 if not message:
-                    print("Why are we here?")
                     # we really shouldn't ever get here, but just in case
                     break
                 # pass the message to a worker
@@ -217,8 +222,14 @@ class Server(Process):
                         worker_id = int.from_bytes(line[3:5],
                                 byteorder='big')
                         pipes[worker_id].send_bytes(line, 0, 7)
-                    else:
+                    elif request_type in self.GET_OR_PUT_BYTEC:
                         self.request_queue.put((line, conn.fileno()))
+                    else:
+                        # it's an end; record it
+                        num_done += 1
+                        message = "Received END #{}\n".format(num_done)
+                        self.outfile.write(message)
+                        self.outfile.flush()
 
     @staticmethod
     def respond(conn, message_id, response_type, data=b''):
