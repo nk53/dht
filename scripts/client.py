@@ -11,15 +11,15 @@ from math import exp
 from random import random
 
 def generate_command():
-    for i in range(100000):
-        if not i % 1000:
+    for i in range(10000):
+        if not i % 100:
             print("i =", i)
         transaction_type = (random() < 0.8) and 'GET' or 'PUT'
         if transaction_type != 'PUT':
             args = str(int(random() * 100))
         else:
             args = str(int(random() * 100)) + ' ' + str(int(random() *
-                100))
+                1000))
         yield transaction_type + ' ' + args
     print("Last message generated")
 
@@ -144,24 +144,12 @@ class Client(Process):
             # make sure we won't overflow
             self.next_message_id %= self.max_counter
 
-            # have we received any responses?
-            self.check_responses()
-
             # prevent pending messages from accumulating endlessly
-            #self.pending_lock.acquire()
-            #while len(self.pending) > 1000:
-            #    self.pending_lock.release()
-            #    self.check_responses()
-            #    self.pending_lock.acquire()
-            #self.pending_lock.release()
+            # also prevent socket buffer overflow
+            self.wait_responses(max_pending=10)
 
         # done sending messages, and now we wait for the final responses
-        self.pending_lock.acquire()
-        while self.pending:
-            self.pending_lock.release()
-            self.check_responses()
-            self.pending_lock.acquire()
-        self.pending_lock.release()
+        self.wait_responses(max_pending=0)
 
         # record when we got the last response
         self.end_time = time()
@@ -178,16 +166,39 @@ class Client(Process):
 
         sleep(100)
 
-    def check_responses(self):
+    def wait_responses(self, max_pending=None):
+        """Keeps checking for responses until the total number of pending
+        messages is no more than max_pending. `None` means don't wait.
+        `0` means keep waiting until all requests have received a response.
+        """
+        if max_pending == None:
+            check_responses(block=False)
+        else:
+            block = True
+            done = False
+            while not done:
+                self.pending_lock.acquire()
+                if len(self.pending) <= max_pending:
+                    done = True
+                    block = False
+                self.pending_lock.release()
+                self.check_responses(block=block)
+
+    def check_responses(self, block=False):
         """Check established connections to see if any servers responded """
         wlist = tuple()
         xlist = tuple()
-        # poll connections; don't block
-        ready_list = select(self.connected, wlist, xlist, 0)[0]
+        if block:
+            # wait for a connection
+            ready_list = select(self.connected, wlist, xlist)[0]
+        else:
+            # poll connections; don't block
+            ready_list = select(self.connected, wlist, xlist, 0)[0]
         for conn in ready_list:
             message_id, response_type, data = self.receive_response(conn)
             if message_id == None:
                 break
+            #print(len(self.pending), "messages pending")
             self.pending_lock.acquire()
             if message_id in self.pending:
                 # TODO: handle response
