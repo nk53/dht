@@ -10,12 +10,12 @@ from threading import Lock, Timer
 from math import exp
 from random import random
 
-def get_command_generator(num_commands, num_keys, count_every=0,
+def get_command_generator(num_commands, num_keys, num_messages=10000, count_every=0,
         get_frac=0.8, max_value=1000):
     """Returns a generator for random commands"""
     if count_every > 0:
         def generate_command():
-            for i in range(10000):
+            for i in range(num_messages):
                 if not i % count_every:
                     print("i =", i)
                 transaction_type = (random() < get_frac) and 'GET' or 'PUT'
@@ -28,7 +28,7 @@ def get_command_generator(num_commands, num_keys, count_every=0,
             print("Last message generated")
     else:
         def generate_command():
-            for i in range(10000):
+            for i in range(num_messages):
                 transaction_type = (random() < get_frac) and 'GET' or 'PUT'
                 if transaction_type != 'PUT':
                     args = str(int(random() * num_keys))
@@ -60,6 +60,8 @@ class Client(Process):
 
     def __init__(self, servers, config):
         """servers should be a list of hostnames"""
+        self.config = config
+
         # general network info
         num_servers = len(servers)
         self.num_nodes = num_servers
@@ -92,6 +94,7 @@ class Client(Process):
         self.generate_command = get_command_generator(
             int(config['num_test_commands']),
             int(config['table_size']),
+            int(config['num_test_commands']),
             int(config['count_every']),
             float(config['get_frac']),
             int(config['max_value'])
@@ -172,11 +175,15 @@ class Client(Process):
         # record when we got the last response
         self.end_time = time()
         run_time = self.end_time - self.start_time
-        debug_msg = "Total messaging runtime: {} s".format(run_time)
+        debug_msg = "Messaging run time: {:.2f} s".format(run_time)
         print(debug_msg)
+        self.outfile.write(debug_msg + os.linesep)
+        debug_msg = "Average throughput: {:.2f} messages/s".format(
+                int(self.config['num_test_commands']) / run_time)
+        print(debug_msg)
+        self.outfile.write(debug_msg + os.linesep)
 
         # write that we're done to our debug file
-        self.outfile.write(debug_msg + os.linesep)
         self.outfile.write("Writing {} ENDs{}".format(len(connected),
             os.linesep))
         self.outfile.flush()
@@ -237,8 +244,8 @@ class Client(Process):
                         result = int.from_bytes(data, byteorder='big')
                         del self.pending[message_id]
                     debug_msg = "GET({}): {}".format(key, result)
-                    #print(debug_msg)
-                    self.outfile.write(debug_msg + '\n')
+                    if self.verbose:
+                        self.outfile.write(debug_msg + '\n')
                 # is the response for a PUT?
                 elif message_type == self.PUT_BYTEC:
                     key, value = message_log["args"][3:]
@@ -258,8 +265,8 @@ class Client(Process):
                     else:
                         result = "Got bad response message"
                     debug_msg = "PUT({}, {}): {}".format(key, value, result)
-                    #print(debug_msg)
-                    self.outfile.write(debug_msg + '\n')
+                    if self.verbose:
+                        self.outfile.write(debug_msg + '\n')
             self.pending_lock.release()
 
     def show_pending(self, show_ascii=True, show_hex=False,

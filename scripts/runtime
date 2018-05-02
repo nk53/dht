@@ -3,4 +3,4 @@
 source setup_env.sh
 
 cd $OUTPUT_DIR
-grep runtime *client.out | sed "s/Total.*untime:/\t/"
+grep -E "(run time)|(throughput)" *client.out | sed "s/: \?/:\t/g"
