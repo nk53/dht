@@ -27,11 +27,17 @@ fi
 port_n=$(grep port $SETTINGS | sed "s/[^0-9]*//")
 if (( $port_n % 100 )); then
     let "port_n++"
+    echo $port_n
 else
+    echo $port_n
     let "port_n = port_n - 99"
 fi
 
-sed -i ".bak" "s/\(port[^0-9]*\)[0-9]*/\1$port_n/" $SETTINGS
+if [ $(uname) == "Darwin" ]; then
+    sed -i ".bak" "s/\(port[^0-9]*\)[0-9]*/\1$port_n/" $SETTINGS
+else
+    sed --in-place=".bak" "s/\(port[^0-9]*\)[0-9]*/\1$port_n/" $SETTINGS
+fi
 
 # do single-node test
 python node.py &
@@ -39,5 +45,7 @@ python node.py &
 while [ $(./ends.sh 1 | wc -l) -lt 1 ] ; do
     sleep 1
 done
+
+./kill_this_python.sh
 
 echo Done

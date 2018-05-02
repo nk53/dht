@@ -10,7 +10,10 @@ if [ $(uname) == "Darwin" ]; then
         awk '{print $2}')
 else
     # most Linux distros
-    PYTHON_PIDS=$(ps -u $(whoami) | grep -i python | grep -v grep | awk '{print $1}')
+    PYTHON_PIDS=$(ps -u $(whoami) |
+    grep -i python |
+    grep -v grep | grep -v kill |
+    awk '{print $1}')
 fi
 
 if [ -n "$PYTHON_PIDS" ]; then
