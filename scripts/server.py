@@ -141,6 +141,7 @@ class Server(Process):
         self.max_retries = int(config['max_retries'])
 
         # setup logging info
+        self.verbose = config['verbose'].upper()[0] == 'T'
         outfilename = os.path.join(
                 os.getenv("OUTPUT_DIR"),
                 self.hostname + "_server.out")
@@ -184,6 +185,9 @@ class Server(Process):
             # block until someone is ready
             conn, addr = s.accept()
             connected.append(conn)
+            self.outfile.write("received a connection from: " + repr(conn)\
+                    + '\n')
+            self.outfile.flush()
 
         self.outfile.write("Connected with {} clients{}".format(
             len(connected), os.linesep))
@@ -216,6 +220,10 @@ class Server(Process):
                     break
                 # pass the message to a worker
                 for line in self.split_multiline(message):
+                    if self.verbose:
+                        self.show_hex(line, prefix="Received: ",
+                                use_outfile=True)
+                        self.outfile.flush()
                     # is this is a commit/abort message?
                     request_type = line[2:3]
                     if request_type in self.TWO_PC_BYTEC:
@@ -241,14 +249,14 @@ class Server(Process):
             data = data.to_bytes(2, byteorder='big')
         conn.sendall(message_id + response_type + data)
 
-    def show_hex(self, data, use_outfile=False):
+    def show_hex(self, data, prefix='', suffix='', use_outfile=False):
         """For debugging socket messages"""
         import textwrap
         data = textwrap.wrap(data.hex(), 2)
         if use_outfile:
-            self.outfile.write(' '.join(data) + '\n')
+            self.outfile.write(prefix + ' '.join(data) + suffix + '\n')
         else:
-            print(' '.join(data))
+            print(prefix + ' '.join(data) + suffix)
 
     @staticmethod
     def split_multiline(data):

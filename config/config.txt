@@ -8,3 +8,4 @@ max_value           1000
 num_test_commands   10000
 get_frac            0.8
 count_every         1000
+verbose             False

@@ -16,7 +16,7 @@ def get_command_generator(num_commands, num_keys, count_every=0,
     if count_every > 0:
         def generate_command():
             for i in range(10000):
-                if not i % 100:
+                if not i % count_every:
                     print("i =", i)
                 transaction_type = (random() < get_frac) and 'GET' or 'PUT'
                 if transaction_type != 'PUT':
@@ -65,7 +65,7 @@ class Client(Process):
         self.num_nodes = num_servers
         self.num_servers = num_servers
         self.hostname = socket.gethostname()
-        self.node_n = servers[0].index(self.hostname) # our node ID
+        self.node_n = servers.index(self.hostname) # our node ID
 
         # connection settings
         port = int(config['port'])
@@ -73,6 +73,7 @@ class Client(Process):
         self.max_retries = int(config['max_retries'])
 
         # logging info
+        self.verbose = config['verbose'].upper()[0] == 'T'
         outfilename = os.path.join(
                 os.getenv("OUTPUT_DIR"),
                 self.hostname + "_client.out")
@@ -84,6 +85,8 @@ class Client(Process):
         self.pending_lock = Lock()
         # amount to increase our message ID by
         self.next_message_id = self.node_n
+        # amount of pending messages we can have before we just wait
+        self.backlog = int(config['backlog'])
 
         # controls what randomly generated commands look like
         self.generate_command = get_command_generator(
@@ -136,6 +139,9 @@ class Client(Process):
         # list of messages sent which have not yet been given a response
         self.pending = dict() 
         for command in self.generate_command():
+            if self.verbose:
+                self.outfile.write(command + '\n')
+                self.outfile.flush()
             # get request type
             request_type = command[:3]
             # get first parameter (key) from the command
@@ -158,7 +164,7 @@ class Client(Process):
 
             # prevent pending messages from accumulating endlessly
             # also prevent socket buffer overflow
-            self.wait_responses(max_pending=10)
+            self.wait_responses(max_pending=self.backlog)
 
         # done sending messages, and now we wait for the final responses
         self.wait_responses(max_pending=0)
@@ -333,8 +339,10 @@ class Client(Process):
         message_id = message_id.to_bytes(2, byteorder='big')
         # send concatenated bytes
         self.sock_lock.acquire()
-        #self.show_hex(message_id + request_type + key + value,
-        #        prefix="Sending: ")
+        if self.verbose:
+            self.show_hex(message_id + request_type + key + value,
+                    prefix="Sending: ", use_outfile=True)
+            self.outfile.flush()
         conn.sendall(message_id + request_type + key + value)
         self.sock_lock.release()
 
@@ -403,11 +411,14 @@ class Client(Process):
         timer = Timer(interval, self.request, args=message_obj["args"])
         timer.start()
 
-    def show_hex(self, data, prefix='', suffix=''):
+    def show_hex(self, data, prefix='', suffix='', use_outfile=False):
         """For debugging socket messages"""
         import textwrap
         data = textwrap.wrap(data.hex(), 2)
-        print(prefix + ' '.join(data) + suffix)
+        if use_outfile:
+            self.outfile.write(prefix + ' '.join(data) + suffix + '\n')
+        else:
+            print(prefix + ' '.join(data) + suffix)
 
     def close_all(self):
         """Waits for all nodes to respond (deprecated)"""
