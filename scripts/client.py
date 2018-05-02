@@ -10,18 +10,34 @@ from threading import Lock, Timer
 from math import exp
 from random import random
 
-def generate_command():
-    for i in range(10000):
-        if not i % 100:
-            print("i =", i)
-        transaction_type = (random() < 0.8) and 'GET' or 'PUT'
-        if transaction_type != 'PUT':
-            args = str(int(random() * 100))
-        else:
-            args = str(int(random() * 100)) + ' ' + str(int(random() *
-                1000))
-        yield transaction_type + ' ' + args
-    print("Last message generated")
+def get_command_generator(num_commands, num_keys, count_every=0,
+        get_frac=0.8, max_value=1000):
+    """Returns a generator for random commands"""
+    if count_every > 0:
+        def generate_command():
+            for i in range(10000):
+                if not i % 100:
+                    print("i =", i)
+                transaction_type = (random() < get_frac) and 'GET' or 'PUT'
+                if transaction_type != 'PUT':
+                    args = str(int(random() * num_keys))
+                else:
+                    args = str(int(random() * num_keys)) + ' ' + \
+                            str(int(random() * max_value))
+                yield transaction_type + ' ' + args
+            print("Last message generated")
+    else:
+        def generate_command():
+            for i in range(10000):
+                transaction_type = (random() < get_frac) and 'GET' or 'PUT'
+                if transaction_type != 'PUT':
+                    args = str(int(random() * num_keys))
+                else:
+                    args = str(int(random() * num_keys)) + ' ' + \
+                            str(int(random() * max_value))
+                yield transaction_type + ' ' + args
+            print("Last message generated")
+    return generate_command
 
 class Client(Process):
     #
@@ -42,39 +58,41 @@ class Client(Process):
     # maximum size of a short
     max_counter = 2 ** 16
 
-    def __init__(self, client_settings, backlog_size, max_retries):
-        """client_settings is a list of 2-tuples: (server_hostname, port)"""
-        # which node are we?
-        self.hostname = socket.gethostname()
-        nodes_list = list(zip(*client_settings))
-        #self.node_n = list(zip(*client_settings))[0].index(self.hostname)
-        self.node_n = nodes_list[0].index(self.hostname)
-        # initialize message counter
-        self.num_nodes = len(nodes_list[0])
-        self.next_message_id = self.node_n
-
+    def __init__(self, servers, config):
+        """servers should be a list of hostnames"""
         # general network info
-        self.client_settings = client_settings
-        self.max_retries = max_retries
-        self.num_servers = len(client_settings)
+        num_servers = len(servers)
+        self.num_nodes = num_servers
+        self.num_servers = num_servers
+        self.hostname = socket.gethostname()
+        self.node_n = servers[0].index(self.hostname) # our node ID
 
-        # open a file for debugging output
+        # connection settings
+        port = int(config['port'])
+        self.client_settings = list(zip(servers, (port,) * num_servers))
+        self.max_retries = int(config['max_retries'])
+
+        # logging info
         outfilename = os.path.join(
                 os.getenv("OUTPUT_DIR"),
                 self.hostname + "_client.out")
         self.outfile = open(outfilename, 'w')
-        # read transactions from a node-specific file directly into a list
-        transaction_filename = os.getenv(
-                "TRANSACTION_PREFIX") + str(self.node_n)
-        self.transactions = open(transaction_filename)
-        with open(transaction_filename) as fh:
-            # second item contains number of retries
-            self.transactions = [line for line in fh]
 
         # ensure only one thread attempts read/write operation on sockets
         self.sock_lock = Lock()
         # ensure only one thread attempts to modify pending dict
         self.pending_lock = Lock()
+        # amount to increase our message ID by
+        self.next_message_id = self.node_n
+
+        # controls what randomly generated commands look like
+        self.generate_command = get_command_generator(
+            int(config['num_test_commands']),
+            int(config['table_size']),
+            int(config['count_every']),
+            float(config['get_frac']),
+            int(config['max_value'])
+        )
 
         # setup thread settings
         super(Client, self).__init__(
@@ -95,10 +113,6 @@ class Client(Process):
                 result = s.connect_ex(server)
                 if result == 0:
                     connected.append(s)
-                    #self.send_string_message(
-                    #    self.next_message_id,
-                    #    "{}'s client is alive\n".format(self.hostname),
-                    #    s)
                     break
                 else:
                     self.outfile.write(
@@ -121,12 +135,10 @@ class Client(Process):
         num_servers = self.num_servers
         # list of messages sent which have not yet been given a response
         self.pending = dict() 
-        #for command in self.transactions:
-        for command in generate_command():
+        for command in self.generate_command():
             # get request type
             request_type = command[:3]
             # get first parameter (key) from the command
-            #key = command[4:command[4:].find(' ') + 4]
             args = list(map(int, command[4:].split()))
             key = args[0]
             # determine which server is responsible for handling this tx
@@ -157,13 +169,17 @@ class Client(Process):
         debug_msg = "Total messaging runtime: {} s".format(run_time)
         print(debug_msg)
 
+        # write that we're done to our debug file
         self.outfile.write(debug_msg + os.linesep)
         self.outfile.write("Writing {} ENDs{}".format(len(connected),
             os.linesep))
         self.outfile.flush()
+
+        # write that we're done to all servers
         for conn in connected:
             self.request(conn, 0, self.END_BYTEC)
 
+        # we should get sigterm, but if not within 100s, just join thread
         sleep(100)
 
     def wait_responses(self, max_pending=None):
@@ -185,7 +201,7 @@ class Client(Process):
                 self.check_responses(block=block)
 
     def check_responses(self, block=False):
-        """Check established connections to see if any servers responded """
+        """Check established connections to see if any servers responded"""
         wlist = tuple()
         xlist = tuple()
         if block:
@@ -238,28 +254,53 @@ class Client(Process):
                     debug_msg = "PUT({}, {}): {}".format(key, value, result)
                     #print(debug_msg)
                     self.outfile.write(debug_msg + '\n')
-                # message has been handled, remove it from pending
-                #print(len(self.pending), "messages pending")
-                #if len(self.pending) < 700:
-                #    values = self.pending.values()
-                #    max_retries = 0
-                #    for value in values:
-                #        if value['retries'] > max_retries:
-                #            max_retries = value['retries']
-                #    print(max_retries, "retries for at least 1 message")
-                #    print(len(self.pending), "messages still pending:")
-                #if len(self.pending) < 1000:
-                #    print(len(self.pending), "messages still pending:")
-                #    for message_obj in self.pending.values():
-                #        args = message_obj["args"][1:]
-                #        message = args[0].to_bytes(2, 'big'), *args[1:]
-                #        key = int.from_bytes(message[2], 'big')
-                #        if len(message) > 3:
-                #            value = int.from_bytes(message[3], 'big')
-                #        else:
-                #            value = 0
-                #        print("PUT({}, {})".format(key, value))
-                #        self.show_hex(b''.join(message))
+            self.pending_lock.release()
+
+    def show_pending(self, show_ascii=True, show_hex=False,
+            show_retries=True, min_pending=None, show_num_pending=False,
+            acquire_lock=False):
+        """Shows sent messages for which we haven't received a response
+        
+        Parameters
+        ----------
+          show_ascii       bool whether to show message as ASCII
+          show_hex         bool whether to show message as hexadecimal
+          min_pending      int  don't show fewer messages than this number
+          show_num_pending int  show how many messages are pending response
+        """
+        if acquire_lock:
+            self.pending_lock.acquire()
+
+        num_pending = len(self.pending)
+        if show_num_pending:
+            print(num_pending, "messages pending")
+
+        if show_retries:
+            values = self.pending.values()
+            max_retries = 0
+            for value in values:
+                if value['retries'] > max_retries:
+                    max_retries = value['retries']
+            print(max_retries, "retries for at least 1 message")
+
+        if show_ascii or show_hex:
+            if min_pending != None and num_pending >= min_pending:
+                for message_obj in self.pending.values():
+                    args = message_obj["args"][1:]
+                    if show_ascii:
+                        message = args[0].to_bytes(2, 'big'), *args[1:]
+                        key = int.from_bytes(message[2], 'big')
+                        if len(message) > 3:
+                            value = int.from_bytes(message[3], 'big')
+                            debug_msg = "PUT({}, {})".format(key, value)
+                        else:
+                            debug_msg = "GET({})".format(key)
+                        print(debug_msg)
+
+                    if show_hex:
+                        self.show_hex(b''.join(args[1:]))
+
+        if acquire_lock:
             self.pending_lock.release()
 
     def receive_response(self, conn):

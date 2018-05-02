@@ -3,3 +3,8 @@ backlog             10
 max_retries         10
 server_threads      8
 coordinator_threads 8
+table_size          100
+max_value           1000
+num_test_commands   10000
+get_frac            0.8
+count_every         1000

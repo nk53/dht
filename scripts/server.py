@@ -131,31 +131,32 @@ class Server(Process):
         GET_BYTEC,
         PUT_BYTEC
     )
-    def __init__(self, clients, server_settings, backlog_size, max_retries):
+    def __init__(self, clients, server_host, config):
         # setup connection info
         self.hostname = socket.gethostname()
-        print("out dir is:", os.getenv("OUTPUT_DIR"))
         self.clients = clients
         self.num_clients = len(clients)
-        self.server_settings = server_settings
-        self.backlog_size = backlog_size
-        self.max_retries = max_retries
+        self.server_settings = (server_host, int(config['port']))
+        self.backlog_size = int(config['backlog'])
+        self.max_retries = int(config['max_retries'])
+
         # setup logging info
         outfilename = os.path.join(
                 os.getenv("OUTPUT_DIR"),
                 self.hostname + "_server.out")
         self.outfile = open(outfilename, 'w')
+
         # setup table
-        #self.table = Table(100)
-        # results in an array of type multiprocessing.sharedctypes.Array
-        num_keys = 1000
+        num_keys = int(config['table_size'])
         self.table = RawArray(c_int, num_keys)
         self.locks = [Lock() for i in range(num_keys)]
-        # multi-producer/multi-consumer queues
-        self.request_queue = Queue()
-        # ensures two processes don't try to write to the same socket
+
+        # setup worker synchronization
+        self.num_workers = int(config['server_threads'])
+        self.request_queue = Queue() # multi-producer/multi-consumer queues
         self.sock_locks = [Lock() for i in range(self.num_clients)]
 
+        # setup multiprocessing info
         super(Server, self).__init__(
             group=None, target=None,
             name="{} (server)".format(self.hostname))
@@ -193,7 +194,7 @@ class Server(Process):
         self.outfile.flush()
         # start 8 worker threads
         pipes = []
-        for worker_id in range(24):
+        for worker_id in range(self.num_workers):
             parent_conn, child_conn = Pipe()
             pipes.append(parent_conn)
             Worker(worker_id, child_conn, s, connected, self.table,
