@@ -197,7 +197,8 @@ class Client(Process):
             self.request(conn, 0, self.END_BYTEC)
 
         # we should get sigterm, but if not within 100s, just join thread
-        sleep(1000)
+        while True:
+            sleep(100)
 
     def wait_responses(self, max_pending=None):
         """Keeps checking for responses until the total number of pending
@@ -308,7 +309,13 @@ class Client(Process):
                             if not target_server == conn:
                                 self.abort(target_server, message_id)
 
+                        if self.verbose:
+                            self.outfile.write("deleting pending\n")
+                            self.outfile.flush()
                         del self.pending[message_id]
+                        if self.verbose:
+                            self.outfile.write("pending deleted\n")
+                            self.outfile.flush()
 
                         # retry with new msg ID
                         message_id = new_id
@@ -478,7 +485,11 @@ class Client(Process):
         message_obj = self.pending[message_id]
         # how many times have we tried already?
         num_retries = message_obj['retries']
-        message_obj['retries'] += 1
+        # 10% of the time, we'll just reset retries to 0
+        if random() > 0.9:
+            message_obj['retries'] = 0
+        else:
+            message_obj['retries'] += 1
         if self.verbose:
             self.outfile.write(str(message_obj['retries']) + " retries ")
             self.outfile.write("for " + str(message_id) + "\n")
