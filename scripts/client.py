@@ -197,7 +197,7 @@ class Client(Process):
             self.request(conn, 0, self.END_BYTEC)
 
         # we should get sigterm, but if not within 100s, just join thread
-        sleep(100)
+        sleep(1000)
 
     def wait_responses(self, max_pending=None):
         """Keeps checking for responses until the total number of pending

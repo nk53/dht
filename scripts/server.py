@@ -123,6 +123,7 @@ class Worker(Process):
         data = textwrap.wrap(data.hex(), 2)
         if use_outfile:
             self.outfile.write(prefix + ' '.join(data) + suffix + '\n')
+            self.outfile.flush()
         else:
             print(prefix + ' '.join(data) + suffix)
 
