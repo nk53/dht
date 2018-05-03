@@ -153,20 +153,24 @@ class Client(Process):
             # determine which server is responsible for handling this tx
             server_index = key % num_servers
             target_server = connected[server_index]
-            # make the request
-            if request_type == 'GET':
-                self.get(target_server, self.next_message_id, key)
-            elif request_type == 'PUT':
-                value = args[1]
-                self.put(target_server, self.next_message_id, key,
-                        value)
+
+            # make request to everybody; deal with response later
+            for target_server in connected:
+                # make the request
+                if request_type == 'GET':
+                    self.get(target_server, self.next_message_id, key)
+                elif request_type == 'PUT':
+                    value = args[1]
+                    self.put(target_server, self.next_message_id, key,
+                            value)
+
             # make sure messages have unique message ID
             self.next_message_id += self.num_nodes
             # make sure we won't overflow
             self.next_message_id %= self.max_counter
 
-            # prevent pending messages from accumulating endlessly
-            # also prevent socket buffer overflow
+            # check for responses; prevent pending messages from
+            # accumulating endlessly; also prevent socket buffer overflow
             self.wait_responses(max_pending=self.backlog)
 
         # done sending messages, and now we wait for the final responses
@@ -197,24 +201,31 @@ class Client(Process):
 
     def wait_responses(self, max_pending=None):
         """Keeps checking for responses until the total number of pending
-        messages is no more than max_pending. `None` means don't wait.
-        `0` means keep waiting until all requests have received a response.
+        messages is no more than max_pending and until there are no more
+        unread responses. `None` means don't wait. `0` means keep waiting
+        until all requests have received a response.
         """
         if max_pending == None:
             check_responses(block=False)
         else:
             block = True
+            responses_read = True
             done = False
             while not done:
                 self.pending_lock.acquire()
                 if len(self.pending) <= max_pending:
-                    done = True
                     block = False
                 self.pending_lock.release()
-                self.check_responses(block=block)
+                responses_read = self.check_responses(block=block)
+                if not block and not responses_read:
+                    done = True
 
     def check_responses(self, block=False):
-        """Check established connections to see if any servers responded"""
+        """Check established connections to see if any servers responded
+        
+        Returns whether any responses were read"""
+        responses_read = False
+
         wlist = tuple()
         xlist = tuple()
         if block:
@@ -227,47 +238,94 @@ class Client(Process):
             message_id, response_type, data = self.receive_response(conn)
             if message_id == None:
                 break
-            #print(len(self.pending), "messages pending")
+            responses_read = True
             self.pending_lock.acquire()
+            # we don't need to handle duplicate responses
             if message_id in self.pending:
-                # TODO: handle response
                 message_log = self.pending[message_id]
-                message_type = message_log["args"][2]
+                message_type = message_log["args"][1]
                 # is the response for a GET?
                 if message_type == self.GET_BYTEC:
-                    key = int.from_bytes(message_log["args"][3],
+                    key = int.from_bytes(message_log["args"][2],
                             byteorder='big')
                     if response_type == self.EMPTY_BYTEC:
+                        # we got a 'busy' response
                         result = None
-                        self.retry(conn, message_id)
+                        message_log['responses'] += 1
+                        if message_log['responses'] >= self.num_servers:
+                            # everyone's busy; retry later
+                            message_log['responses'] = 0
+                            self.retry(message_id)
                     else:
+                        # we got a good response; remove from pending
                         result = int.from_bytes(data, byteorder='big')
                         del self.pending[message_id]
-                    debug_msg = "GET({}): {}".format(key, result)
+                    debug_msg = "GET {}: {}".format(key, result)
                     if self.verbose:
                         self.outfile.write(debug_msg + '\n')
                 # is the response for a PUT?
                 elif message_type == self.PUT_BYTEC:
-                    key, value = message_log["args"][3:]
+                    key, value = message_log["args"][2:]
                     key = int.from_bytes(key, byteorder='big')
                     value = int.from_bytes(value, byteorder='big')
 
                     if response_type == self.ACK_BYTEC:
-                        # TODO: did every server respond ACK?
+                        # can't commit until everyone's said "OK"
+                        message_log['responses'] += 1
+                        if self.verbose:
+                            self.outfile.write("Got ACK #" +
+                                    str(message_log['responses']) + "\n")
+                        if message_log['responses'] >= self.num_servers:
+                            for target_server in self.connected:
+                                self.outfile.write("target is " +
+                                        repr(target_server) + "\n")
+                                self.commit(target_server, message_id)
+                            del self.pending[message_id]
                         result = "OK"
-                        self.commit(conn, message_id, data)
-                        del self.pending[message_id]
                     elif response_type == self.CANCEL_BYTEC:
-                        # TODO: put in a list
+                        # need to use a different message_id
+                        message_log['responses'] = 0
+                        if self.verbose:
+                            self.outfile.write("got cancel\n")
+                            self.outfile.write("message ID is:" + str(
+                                message_id) + "\n")
+                        new_id = self.next_message_id
+
+                        # incr msg ID counter by an appropriate amount
+                        self.next_message_id += self.num_nodes
+                        self.next_message_id %= self.max_counter
+
+                        self.pending[new_id] = self.pending[message_id]
+                        # make sure args indicates updated message ID
+                        message_id, req_type, k, v = \
+                                self.pending[new_id]['args']
+                        self.pending[new_id]['args'] = (new_id, req_type,
+                                k, v)
+
+                        # send everyone else an abort
+                        for target_server in self.connected:
+                            if not target_server == conn:
+                                self.abort(target_server, message_id)
+
+                        del self.pending[message_id]
+
+                        # retry with new msg ID
+                        message_id = new_id
+                        if self.verbose:
+                            self.outfile.write("retrying with ID " + str(
+                                message_id) + "\n")
+
+                        self.retry(message_id)
+
                         result = "Denied"
-                        self.abort(conn, message_id, data)
-                        self.retry(conn, message_id)
                     else:
                         result = "Got bad response message"
-                    debug_msg = "PUT({}, {}): {}".format(key, value, result)
+                    debug_msg = "PUT {} {}: {}".format(key, value, result)
                     if self.verbose:
                         self.outfile.write(debug_msg + '\n')
             self.pending_lock.release()
+
+            return responses_read
 
     def show_pending(self, show_ascii=True, show_hex=False,
             show_retries=True, min_pending=None, show_num_pending=False,
@@ -299,15 +357,15 @@ class Client(Process):
         if show_ascii or show_hex:
             if min_pending != None and num_pending >= min_pending:
                 for message_obj in self.pending.values():
-                    args = message_obj["args"][1:]
+                    args = message_obj["args"]
                     if show_ascii:
                         message = args[0].to_bytes(2, 'big'), *args[1:]
                         key = int.from_bytes(message[2], 'big')
                         if len(message) > 3:
                             value = int.from_bytes(message[3], 'big')
-                            debug_msg = "PUT({}, {})".format(key, value)
+                            debug_msg = "PUT {} {}".format(key, value)
                         else:
-                            debug_msg = "GET({})".format(key)
+                            debug_msg = "GET {}".format(key)
                         print(debug_msg)
 
                     if show_hex:
@@ -324,7 +382,8 @@ class Client(Process):
         self.sock_lock.release()
         if not message:
             return None, None, None
-        #self.show_hex(message, prefix="Received: ")
+        if self.verbose:
+            self.show_hex(message, prefix="Received: ", use_outfile=True)
         message_id = int.from_bytes(message[:2], byteorder='big')
         response_type = message[2:3]
         data = message[3:5]
@@ -353,15 +412,19 @@ class Client(Process):
         conn.sendall(message_id + request_type + key + value)
         self.sock_lock.release()
 
-    def abort(self, conn, message_id, worker_id):
+    def abort(self, conn, message_id):
         """Tells the server to abort a PUT"""
         req_type = self.CANCEL_BYTEC
-        self.request(conn, message_id, req_type, worker_id)
+        message_obj = self.pending[message_id]
+        key, value = message_obj['args'][2:]
+        self.request(conn, message_id, req_type, key, value)
 
-    def commit(self, conn, message_id, worker_id):
+    def commit(self, conn, message_id):
         """Tells the server to commit a PUT"""
         req_type = self.ACK_BYTEC
-        self.request(conn, message_id, req_type, worker_id)
+        message_obj = self.pending[message_id]
+        key, value = message_obj['args'][2:]
+        self.request(conn, message_id, req_type, key, value)
 
     def get(self, conn, message_id, key):
         """Sends a GET request
@@ -379,8 +442,9 @@ class Client(Process):
 
         self.pending_lock.acquire()
         self.pending[message_id] = {
-                'args': (conn, message_id, req_type, key),
-                'retries': 0
+                'args': (message_id, req_type, key),
+                'retries': 0,
+                'responses': 0
         } 
         self.pending_lock.release()
 
@@ -401,22 +465,28 @@ class Client(Process):
         
         self.pending_lock.acquire()
         self.pending[message_id] = {
-                'args': (conn, message_id, req_type, key, value),
-                'retries': 0
+                'args': (message_id, req_type, key, value),
+                'retries': 0,
+                'responses': 0
         } 
         self.pending_lock.release()
 
-    def retry(self, conn, message_id):
+    def retry(self, message_id):
         """Waits an exponentially-increasing amount of time, then
         re-attempts a message"""
         message_obj = self.pending[message_id]
         # how many times have we tried already?
         num_retries = message_obj['retries']
         message_obj['retries'] += 1
+        if self.verbose:
+            self.outfile.write(str(message_obj['retries']) + " retries ")
+            self.outfile.write("for " + str(message_id) + "\n")
         # how long should we wait?
         interval = exp(-5 + num_retries) * random()
-        timer = Timer(interval, self.request, args=message_obj["args"])
-        timer.start()
+        for target_server in self.connected:
+            args = (target_server,) + message_obj["args"]
+            timer = Timer(interval, self.request, args=args)
+            timer.start()
 
     def show_hex(self, data, prefix='', suffix='', use_outfile=False):
         """For debugging socket messages"""
