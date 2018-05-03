@@ -277,8 +277,9 @@ class Client(Process):
                                     str(message_log['responses']) + "\n")
                         if message_log['responses'] >= self.num_servers:
                             for target_server in self.connected:
-                                self.outfile.write("target is " +
-                                        repr(target_server) + "\n")
+                                if self.verbose:
+                                    self.outfile.write("target is " +
+                                            repr(target_server) + "\n")
                                 self.commit(target_server, message_id)
                             del self.pending[message_id]
                         result = "OK"
