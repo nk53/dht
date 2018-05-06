@@ -452,6 +452,7 @@ class Client(Process):
         self.pending[message_id] = {
                 'args': (message_id, req_type, key),
                 'retries': 0,
+                'multiplier': None,
                 'responses': 0
         } 
         self.pending_lock.release()
@@ -475,26 +476,36 @@ class Client(Process):
         self.pending[message_id] = {
                 'args': (message_id, req_type, key, value),
                 'retries': 0,
+                'multiplier': None,
                 'responses': 0
         } 
         self.pending_lock.release()
 
     def retry(self, message_id):
         """Waits an exponentially-increasing amount of time, then
-        re-attempts a message"""
+        re-attempts a message. The exact rate of exponential increase is
+        random."""
         message_obj = self.pending[message_id]
         # how many times have we tried already?
         num_retries = message_obj['retries']
-        # 10% of the time, we'll just reset retries to 0
-        if random() > 0.9:
-            message_obj['retries'] = 0
-        else:
-            message_obj['retries'] += 1
+        multiplier = message_obj['multiplier']
+
+        # reset if we already tried 10 times
+        if num_retries >= 3:
+            num_retries = 0
+
+
+        # assign a random rate of exponential increase
+        if num_retries == 0:
+            multiplier = random() * 2
+            message_obj['multiplier'] = multiplier
+
+        message_obj['retries'] += 1
         if self.verbose:
             self.outfile.write(str(message_obj['retries']) + " retries ")
             self.outfile.write("for " + str(message_id) + "\n")
         # how long should we wait?
-        interval = exp(-5 + num_retries) * random()
+        interval = exp(-5 + num_retries * multiplier)
         for target_server in self.connected:
             args = (target_server,) + message_obj["args"]
             timer = Timer(interval, self.request, args=args)
