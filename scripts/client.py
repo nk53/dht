@@ -106,6 +106,11 @@ class Client(Process):
             self.hostname))
 
     def run(self):
+        import cProfile
+        cProfile.runctx("self.worker_run()", globals(), locals(),
+                filename="profiles/client")
+
+    def worker_run(self):
         # establish a connection with all servers
         connected = []
         client_settings = self.client_settings
@@ -197,8 +202,8 @@ class Client(Process):
             self.request(conn, 0, self.END_BYTEC)
 
         # we should get sigterm, but if not within 100s, just join thread
-        while True:
-            sleep(100)
+        #while True:
+        #    sleep(100)
 
     def wait_responses(self, max_pending=None):
         """Keeps checking for responses until the total number of pending

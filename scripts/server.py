@@ -53,6 +53,12 @@ class Worker(Process):
         super(Worker, self).__init__(group=None, target=None, name=None)
 
     def run(self):
+        print("Running worker", self.worker_id)
+        import cProfile
+        cProfile.runctx("self.worker_run()", globals(), locals(),
+            filename="profiles/server_worker_{}".format(self.worker_id))
+
+    def worker_run(self):
         while True:
             # get the next request as a byte-string, blocking if necessary
             req_bytes, conn_fileno = self.request_queue.get()
@@ -99,7 +105,9 @@ class Worker(Process):
                 self.pending[key] = 0
                 value = int.from_bytes(req_bytes[5:7], byteorder='big')
             elif request_type == self.END_BYTEC:
-                print("Workers aren't supposed to receive ENDs")
+                #print("Workers aren't supposed to receive ENDs")
+                # exit from while loop
+                break
             else:
                 print("Got bad request")
 
@@ -218,12 +226,15 @@ class Server(Process):
         self.outfile.flush()
         # start 8 worker threads
         pipes = []
+        workers = []
         for worker_id in range(self.num_workers):
             parent_conn, child_conn = Pipe()
             pipes.append(parent_conn)
-            Worker(worker_id, child_conn, s, connected, self.table,
+            worker = Worker(worker_id, child_conn, s, connected, self.table,
                     self.request_queue, self.sock_locks, self.pending,
-                    self.outfile, self.verbose).start()
+                    self.outfile, self.verbose)
+            worker.start()
+            workers.append(worker)
         # keep track of the number of successful PUT operations
         num_puts = 0
         num_done = 0
@@ -248,6 +259,14 @@ class Server(Process):
                     if request_type != self.END_BYTEC:
                         self.request_queue.put((line, conn.fileno()))
                     else:
+                        # send END to each worker
+                        for worker_id in range(self.num_workers):
+                            self.request_queue.put((line, conn.fileno()))
+                        # wait for them all to join
+                        for worker_id in range(self.num_workers):
+                            workers[worker_id].join()
+                        # exit from outer loop
+                        done = True
                         # it's an end; record it
                         num_done += 1
                         message = "Received END #{}\n".format(num_done)
