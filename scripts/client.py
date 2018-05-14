@@ -10,7 +10,7 @@ from threading import Lock, Timer
 from math import exp
 from random import random
 
-def get_command_generator(num_commands, num_keys, num_messages=10000, count_every=0,
+def get_command_generator(num_keys, num_messages=10000, count_every=0,
         get_frac=0.8, max_value=1000):
     """Returns a generator for random commands"""
     if count_every > 0:
@@ -92,7 +92,6 @@ class Client(Process):
 
         # controls what randomly generated commands look like
         self.generate_command = get_command_generator(
-            int(config['num_test_commands']),
             int(config['table_size']),
             int(config['num_test_commands']),
             int(config['count_every']),

@@ -7,6 +7,8 @@ from hash_single_thread import Table
 from ctypes import c_int
 
 class Worker(Process):
+    """Uses blocking FIFO queues to read and write to a shared memory
+    table"""
     # request types
     GET_BYTEC    = b'\x00'
     PUT_BYTEC    = b'\x01'
@@ -17,8 +19,6 @@ class Worker(Process):
     ACK_BYTEC    = b'\x06'
     CANCEL_BYTEC = b'\x18'
 
-    """Uses blocking FIFO queues to read and write to a shared memory
-    table"""
     def __init__(self, worker_id, pipe_conn, sock, conns, table,
             request_queue, sock_locks, pending, outfile=None,
             verbose=False):
@@ -175,7 +175,7 @@ class Server(Process):
 
         # setup table
         num_keys = int(config['table_size'])
-        # syncrhonized by means of an indicator array
+        # synchronized by means of an indicator array
         self.table = RawArray(c_int, num_keys)
 
         # setup worker synchronization
